@@ -10,6 +10,11 @@ add_library(DebugUtil
     debug/log.cpp
 ) 
 
+add_library(Engine
+    engine/engine.hpp
+    engine/engine.cpp
+) 
+
 target_sources(NoGoNoLife
   PRIVATE
     controller/main.hpp
@@ -19,6 +24,7 @@ target_sources(NoGoNoLife
 target_link_libraries(NoGoNoLife
   PRIVATE
     DebugUtil
+    Engine
 )
 
 target_include_directories(NoGoNoLife
