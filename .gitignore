@@ -4,5 +4,3 @@
 
 # Ignore build directories
 build/
-release/
-debug/
