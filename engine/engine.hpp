@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <queue>
 #include <utility>
+#include <debug/log.hpp>
 
 #define BOARDSIZE 19
 
@@ -14,6 +15,8 @@ const int8_t ADJCORD_Y[4] = {0, -1, 1, 0};
 
 struct Game {
     int8_t current[BOARDSIZE + 2][BOARDSIZE + 2];
+
+    bool turn = 0;
 
     Game() {
         for (int i = 1; i < BOARDSIZE + 1; i++) {
@@ -28,6 +31,9 @@ struct Game {
 };
 
 bool placeStone(int x, int y, bool side);
+
+bool undoMove();
+bool redoMove();
 
 void printGame(Game c);
 void printCurrentGame();

@@ -28,5 +28,9 @@ target_link_libraries(NoGoNoLife
 )
 
 target_include_directories(NoGoNoLife
-        PUBLIC ./
+  PUBLIC ./
+)
+
+target_include_directories(Engine
+  PUBLIC ./
 )

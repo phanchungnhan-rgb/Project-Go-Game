@@ -9,7 +9,7 @@ void CONSOLE_LOG(char *argtype, ...) {
     char *times = asctime(ptr);
     times[strlen(times) - 1] = '\0';
     
-    printf("%s: ", times);
+    printf("UTC+0 %s: ", times);
 
     va_list list;
 
@@ -37,4 +37,5 @@ void CONSOLE_LOG(char *argtype, ...) {
             } 
         }
     }
+    printf("\n");
 }

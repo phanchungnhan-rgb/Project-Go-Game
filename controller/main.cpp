@@ -7,7 +7,14 @@ int main() {
         int x, y, side;
         std::cin >> x >> y >> side;
 
-        placeStone(x, y, side);
+        if (x < 0) {
+            undoMove();
+        } else if (y < 0) {
+            redoMove();
+        } else {
+            placeStone(x, y, side);
+        }
+
         printCurrentGame();
     }
 
