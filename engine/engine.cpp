@@ -6,7 +6,8 @@ bool INVALID_MOVE() {
 }
 
 // Game current_game, last_game;
-std::vector<Game> games(2);
+std::deque<Game> games(2);
+std::stack<Game> redo_stack;
 int current_game_index = 1;
 
 bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]) {
@@ -83,10 +84,10 @@ bool checkAndClear(Game &newgame, bool side) {
 }
 
 bool placeStone(int x, int y, bool side) {
-    if (games[current_game_index].current[x][y]) return INVALID_MOVE();
+    if (games.back().current[x][y]) return INVALID_MOVE();
 
     Game newgame;
-    newgame = games[current_game_index];
+    newgame = games.back();
 
     newgame.current[x][y] = 1 + side;
 
@@ -95,34 +96,35 @@ bool placeStone(int x, int y, bool side) {
     if (checkAndClear(newgame, side)) {
         return INVALID_MOVE();
     } else {
-        if (cmpGameArray(newgame.current, games[current_game_index - 1].current)) {
+        if (cmpGameArray(newgame.current, (games.end() - 2)->current)) {
             return INVALID_MOVE();
         }
         
-        while (games.size() > current_game_index + 1) {
-            games.pop_back();
-        }
+        while (!redo_stack.empty()) redo_stack.pop();
 
-        current_game_index++;
         games.push_back(newgame);
+        if (games.size() > UNDOSTSZ) games.pop_front();
         return true;
     }
     return INVALID_MOVE();
 }  
 
 bool undoMove() {
-    if (current_game_index < 2) {
+    if (games.size() <= 2) {
         return INVALID_MOVE();
     }
-    current_game_index--;
+    redo_stack.push(games.back());
+    games.pop_back();
     return true;
 }
 
 bool redoMove() {
-    if (current_game_index + 1 >= games.size()) {
+    if (redo_stack.empty()) {
         return INVALID_MOVE();
     }
-    current_game_index++;
+    games.push_back(redo_stack.top());
+    redo_stack.pop();
+    if (games.size() > UNDOSTSZ) games.pop_front();
     return true;
 }
 
@@ -139,5 +141,5 @@ void printGame(Game c) {
 }
 
 void printCurrentGame() {
-    printGame(games[current_game_index]);
+    printGame(games.back());
 }

@@ -5,10 +5,13 @@
 #include <string.h>
 #include <stdint.h>
 #include <queue>
+#include <deque>
+#include <stack>
 #include <utility>
 #include <debug/log.hpp>
 
 #define BOARDSIZE 19
+#define UNDOSTSZ 69
 
 const int8_t ADJCORD_X[4] = {1, 0, 0, -1};
 const int8_t ADJCORD_Y[4] = {0, -1, 1, 0};
