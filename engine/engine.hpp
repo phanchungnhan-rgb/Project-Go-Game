@@ -8,6 +8,8 @@
 #include <deque>
 #include <stack>
 #include <utility>
+#include <fstream>
+
 #include <debug/log.hpp>
 
 #define BOARDSIZE 19
@@ -37,6 +39,9 @@ bool placeStone(int x, int y, bool side);
 
 bool undoMove();
 bool redoMove();
+
+bool saveGame(char *file_name);
+bool loadGame(char *file_name);
 
 void printGame(Game c);
 void printCurrentGame();

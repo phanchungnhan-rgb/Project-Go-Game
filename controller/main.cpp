@@ -7,6 +7,20 @@ int main() {
         int x, y, side;
         std::cin >> x >> y >> side;
 
+        if (x == -404) {
+            char x[69];
+            std::cin >> x;
+            saveGame(x);
+
+            continue;
+        } else if (x == 404) {
+            char x[69];
+            std::cin >> x;
+            loadGame(x);
+
+            continue;
+        }
+
         if (x < 0) {
             undoMove();
         } else if (y < 0) {

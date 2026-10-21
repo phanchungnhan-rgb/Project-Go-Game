@@ -16,3 +16,9 @@ Create the Visual Studio 2026 build files and compile
 cmake -B build
 cmake --build build
 ```
+
+
+# Resourses
+
+https://github.com/lightvector/katago
+https://www.gnu.org/software/gnugo/gnugo_4.html
