@@ -19,6 +19,8 @@ add_library(DebugUtil
 add_library(Engine
     engine/engine.hpp
     engine/engine.cpp
+    engine/AI.hpp
+    engine/AI.cpp
 ) 
 
 target_sources(NoGoNoLife

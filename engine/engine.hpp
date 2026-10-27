@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <stdio.h>
 #include <stdarg.h>
@@ -10,7 +12,8 @@
 #include <utility>
 #include <fstream>
 
-#include <debug/log.hpp>
+#include "debug/log.hpp"
+// #include "engine/AI.hpp"
 
 #define BOARDSIZE 19
 #define UNDOSTSZ 69
@@ -30,10 +33,19 @@ struct Game {
             }
         }
         for (int i = 0; i < BOARDSIZE + 2; i++) {
-            current[0][i] = current[20][i] = current[i][0] = current[i][20] = 69;
+            current[0][i] = current[20][i] = current[i][0] = current[i][20] = 127;
         }
     }
 };
+
+// Game current_game, last_game;
+extern std::deque<Game> games;
+extern std::vector<Game> redo_stack;
+
+bool INVALID_MOVE();
+
+bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]);
+bool checkAndClear(Game &newgame, bool side);
 
 bool placeStone(int x, int y, bool side);
 

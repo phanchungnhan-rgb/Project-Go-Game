@@ -1,5 +1,7 @@
 # Project-Go-Game
 
+
+
 # Build
 
 Initialize environment for Visual Studio 2026
@@ -17,6 +19,9 @@ cmake -B build
 cmake --build build
 ```
 
+# Contributing
+
+Just don't use recursion please
 
 # Resourses
 

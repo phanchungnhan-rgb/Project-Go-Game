@@ -1,13 +1,13 @@
 #include "engine.hpp"
 
+// Game current_game, last_game;
+std::deque<Game> games(2);
+std::vector<Game> redo_stack;
+
 bool INVALID_MOVE() {
     CONSOLE_LOG("INVALID MOVE\n");
     return false;
 }
-
-// Game current_game, last_game;
-std::deque<Game> games(2);
-std::vector<Game> redo_stack;
 
 bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]) {
     for (int i = 1; i < BOARDSIZE + 1; i++) {
@@ -84,6 +84,7 @@ bool checkAndClear(Game &newgame, bool side) {
 
 bool placeStone(int x, int y, bool side) {
     if (games.back().current[x][y]) return INVALID_MOVE();
+
 
     Game newgame;
     newgame = games.back();

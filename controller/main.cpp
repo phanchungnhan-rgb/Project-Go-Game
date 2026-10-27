@@ -3,6 +3,7 @@
 int main() {
     CONSOLE_LOG("this is %d %s \n", 342, "testing 1234");
 
+
     while (true) {
         int x, y, side;
         std::cin >> x >> y >> side;
@@ -17,6 +18,11 @@ int main() {
             char x[69];
             std::cin >> x;
             loadGame(x);
+
+            
+    
+            // check eye - must delete
+            SimulateMove(games.back(), games[games.size() - 1], 0, 3, 2); 
 
             continue;
         }
