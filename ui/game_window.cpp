@@ -1,0 +1,122 @@
+#include "game_window.hpp"
+#include "engine/engine.hpp"
+#include <cmath>
+
+void GameWindow::run() {
+    sf::RenderWindow window(
+        sf::VideoMode({windowWidth, windowHeight}),
+        "NoGoNoLife"
+    );
+    window.setFramerateLimit(60);
+
+    while (window.isOpen()) {
+        processEvents(window);
+
+        window.clear(sf::Color(220, 179, 92));
+        drawBoard(window);
+        window.display();
+    }
+}
+
+float GameWindow::boardSpacing() const {
+    return (windowWidth - 2.f * boardMargin) /
+           static_cast<float>(boardSize - 1);
+}
+
+bool GameWindow::pixelToBoardPosition(
+    sf::Vector2i pixel,
+    int& boardX,
+    int& boardY
+) const {
+    const float spacing = boardSpacing();
+
+    const int column = static_cast<int>(
+        std::lround((static_cast<float>(pixel.x) - boardMargin) / spacing)
+    );
+    const int row = static_cast<int>(
+        std::lround((static_cast<float>(pixel.y) - boardMargin) / spacing)
+    );
+
+    if (column < 0 || column >= boardSize ||
+        row < 0 || row >= boardSize) {
+        return false;
+    }
+
+    const float intersectionX = boardMargin + column * spacing;
+    const float intersectionY = boardMargin + row * spacing;
+    const float clickTolerance = spacing * 0.35f;
+
+    if (std::abs(static_cast<float>(pixel.x) - intersectionX) > clickTolerance ||
+        std::abs(static_cast<float>(pixel.y) - intersectionY) > clickTolerance) {
+        return false;
+    }
+
+    boardX = column + 1;
+    boardY = row + 1;
+
+    return true;
+}
+
+void GameWindow::processEvents(sf::RenderWindow& window) {
+    while (const std::optional event = window.pollEvent()) {
+        if (event->is<sf::Event::Closed>()) {
+            window.close();
+        }
+
+        if (const auto* mouseButtonEvent =
+                event->getIf<sf::Event::MouseButtonPressed>()) {
+            if (mouseButtonEvent->button != sf::Mouse::Button::Left) {
+                continue;
+            }
+            int boardX = 0, boardY = 0;
+
+            if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
+                if (placeStone(boardX, boardY, currentSide)) {
+                    currentSide = !currentSide;
+                }
+            }
+        }
+    }
+}
+
+void GameWindow::drawBoard(sf::RenderWindow& window) {
+    const float spacing = boardSpacing();
+
+    for (int i = 0; i < boardSize; ++i) {
+        const float offset = boardMargin + static_cast<float>(i) * spacing;
+
+        sf::RectangleShape horizontal(
+            {windowWidth - 2.f * boardMargin, 1.f}
+        );
+        horizontal.setPosition({boardMargin, offset});
+        horizontal.setFillColor(sf::Color::Black);
+        window.draw(horizontal);
+
+        sf::RectangleShape vertical(
+            {1.f, windowHeight - 2.f * boardMargin}
+        );
+        vertical.setPosition({offset, boardMargin});
+        vertical.setFillColor(sf::Color::Black);
+        window.draw(vertical);
+    }
+    for (int i = 1; i < boardSize + 1; ++i) {
+        for (int j = 1; j < boardSize + 1; ++j) {
+            const float radius = spacing * 0.45f;
+            const float pixelX = boardMargin + (i - 1) * spacing;
+            const float pixelY = boardMargin + (j - 1) * spacing;
+            if (games.back().current[i][j] == 1) {
+                sf::CircleShape stone(radius);
+                stone.setOrigin({radius, radius});
+                stone.setPosition({pixelX, pixelY});
+                stone.setFillColor(sf::Color::Black);
+                window.draw(stone);
+            } else if (games.back().current[i][j] == 2) {
+                sf::CircleShape stone(radius);
+                stone.setOrigin({radius, radius});
+                stone.setPosition({pixelX, pixelY});
+                stone.setFillColor(sf::Color::White);
+                window.draw(stone);
+            }
+        }
+    }
+}
