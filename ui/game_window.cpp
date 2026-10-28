@@ -1,6 +1,8 @@
 #include "game_window.hpp"
-#include "engine/engine.hpp"
-#include <cmath>
+
+// 0 = normal
+// 1 = show AI simulation (Debug)
+int render_mode = 0;
 
 void GameWindow::run() {
     sf::RenderWindow window(
@@ -63,18 +65,40 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
             window.close();
         }
 
-        if (const auto* mouseButtonEvent =
-                event->getIf<sf::Event::MouseButtonPressed>()) {
+        if (const auto* KeyDownEvent = event->getIf<sf::Event::KeyPressed>()) {
+            if (KeyDownEvent->scancode == sf::Keyboard::Scancode::A) {
+                render_mode = 1;
+                continue;
+            }
+            if (KeyDownEvent->scancode == sf::Keyboard::Scancode::D) { // for testing only
+                CONSOLE_LOG("simulating\n");
+
+                MoveNode newnode;
+                newnode.last = *(games.end() - 2);
+                newnode.current = games.back();
+                CONSOLE_LOG("random play score: %d\n", simulateRandomPlay(newnode));
+
+                continue;
+            }
+            continue;
+        }
+        if (const auto* KeyUpEvent = event->getIf<sf::Event::KeyReleased>()) {
+            if (KeyUpEvent->scancode == sf::Keyboard::Scancode::A) {
+                render_mode = 0;
+            }
+            continue;
+        }
+        if (const auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
             if (mouseButtonEvent->button != sf::Mouse::Button::Left) {
                 continue;
             }
             int boardX = 0, boardY = 0;
 
             if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
-                if (placeStone(boardX, boardY, currentSide)) {
-                    currentSide = !currentSide;
+                if (placeStone(boardX, boardY, games.back().turn)) {
                 }
             }
+            continue;
         }
     }
 }
@@ -104,6 +128,51 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
             const float radius = spacing * 0.45f;
             const float pixelX = boardMargin + (i - 1) * spacing;
             const float pixelY = boardMargin + (j - 1) * spacing;
+
+            if (games.back().current[i][j] == 1) {
+                sf::CircleShape stone(radius);
+                stone.setOrigin({radius, radius});
+                stone.setPosition({pixelX, pixelY});
+                stone.setFillColor(sf::Color::Black);
+                window.draw(stone);
+            } else if (games.back().current[i][j] == 2) {
+                sf::CircleShape stone(radius);
+                stone.setOrigin({radius, radius});
+                stone.setPosition({pixelX, pixelY});
+                stone.setFillColor(sf::Color::White);
+                window.draw(stone);
+            }
+        }
+    }
+}
+
+
+void GameWindow::drawBoardAIDebug(sf::RenderWindow& window) {
+    const float spacing = boardSpacing();
+
+    for (int i = 0; i < boardSize; ++i) {
+        const float offset = boardMargin + static_cast<float>(i) * spacing;
+
+        sf::RectangleShape horizontal(
+            {windowWidth - 2.f * boardMargin, 1.f}
+        );
+        horizontal.setPosition({boardMargin, offset});
+        horizontal.setFillColor(sf::Color::Black);
+        window.draw(horizontal);
+
+        sf::RectangleShape vertical(
+            {1.f, windowHeight - 2.f * boardMargin}
+        );
+        vertical.setPosition({offset, boardMargin});
+        vertical.setFillColor(sf::Color::Black);
+        window.draw(vertical);
+    }
+    for (int i = 1; i < boardSize + 1; ++i) {
+        for (int j = 1; j < boardSize + 1; ++j) {
+            const float radius = spacing * 0.45f;
+            const float pixelX = boardMargin + (i - 1) * spacing;
+            const float pixelY = boardMargin + (j - 1) * spacing;
+
             if (games.back().current[i][j] == 1) {
                 sf::CircleShape stone(radius);
                 stone.setOrigin({radius, radius});

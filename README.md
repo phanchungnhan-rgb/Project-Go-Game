@@ -4,8 +4,17 @@
 
 # Build
 
+<!--
 The game UI uses SFML 3.1.0. Install the SFML 3.1.0 development package for
 your compiler and make sure CMake can find its `SFMLConfig.cmake` package file.
+-->
+
+The game UI uses SFML 3.1.0. Install the SFML 3.1.0 development package
+```sh
+cd vendored
+git clone https://github.com/SFML/SFML
+```
+
 
 Initialize environment for Visual Studio 2026
 ```sh

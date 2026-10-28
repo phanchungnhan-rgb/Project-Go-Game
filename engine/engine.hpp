@@ -24,9 +24,12 @@ const int8_t ADJCORD_Y[4] = {0, -1, 1, 0};
 struct Game {
     int8_t current[BOARDSIZE + 2][BOARDSIZE + 2];
 
-    bool turn = 0;
+    bool turn = 0; // next player turn
+
+    int taken[2];
 
     Game() {
+        taken[0] = taken[1] = 0;
         for (int i = 1; i < BOARDSIZE + 1; i++) {
             for (int j = 1; j < BOARDSIZE + 1; j++) {
                 current[i][j] = 0;

@@ -13,6 +13,10 @@
 #include <fstream>
 #include <set>
 #include <math.h>
+#include <random>       // std::default_random_engine
+#include <chrono>       // std::chrono::system_clock
+#include <algorithm>    // std::shuffle
+#include <array>
 
 #include "debug/log.hpp"
 #include "engine/engine.hpp"
@@ -25,9 +29,9 @@ struct MoveNode {
 
     // we dont have to worry about which item in the set is the current child because its in the first of the set
     // so we just have to recalculate the first of the set each time we simulate
-    std::set<std::pair<std::array<int8_t, 3>, MoveNode *>> remaining; // (weight; x; y); child node
+    std::set<std::pair<std::array<int8_t, 3>, MoveNode *>> childs; // (weight; x; y); child node
 
     double w, n;
 };
 
-bool SimulateMove(Game &game, Game &previousgame, bool side, int x, int y);
+double simulateRandomPlay(MoveNode node);

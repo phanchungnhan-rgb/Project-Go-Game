@@ -60,6 +60,9 @@ bool checkAndClear(Game &newgame, bool side) {
                     for (std::pair<int8_t, int8_t> &point : cluster) {
                         newgame.current[point.first][point.second] = 0;
                     }
+                    if (newgame.turn == side) {
+                        newgame.taken[!side] += cluster.size();
+                    }
                     deleted = true;
                 } /* else {
                     for (std::pair<int8_t, int8_t> &point : cluster) {
@@ -88,6 +91,7 @@ bool placeStone(int x, int y, bool side) {
 
     Game newgame;
     newgame = games.back();
+    newgame.turn = !side;
 
     newgame.current[x][y] = 1 + side;
 

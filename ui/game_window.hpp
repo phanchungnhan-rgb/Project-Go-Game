@@ -1,5 +1,10 @@
 #pragma once
 
+#include "engine/engine.hpp"
+#include "engine/AI.hpp"
+
+#include <cmath>
+
 #include <SFML/Graphics.hpp>
 
 class GameWindow {
@@ -12,8 +17,6 @@ private:
     static constexpr int boardSize = 19;
     static constexpr float boardMargin = 40.f;
 
-    bool currentSide = false; // false for black, true for white
-
     float boardSpacing() const;
     bool pixelToBoardPosition(
         sf::Vector2i pixel,
@@ -23,4 +26,5 @@ private:
 
     void processEvents(sf::RenderWindow& window);
     void drawBoard(sf::RenderWindow& window);
+    void drawBoardAIDebug(sf::RenderWindow& window);
 };

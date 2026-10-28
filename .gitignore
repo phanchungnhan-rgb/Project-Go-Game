@@ -4,3 +4,7 @@
 
 # Ignore build directories
 build/
+
+
+# Ignore external libariies
+vendored/*
