@@ -4,12 +4,16 @@
 // 1 = show AI simulation (Debug)
 int render_mode = 0;
 
+MCTSBOT lv1bot;
+
 void GameWindow::run() {
     sf::RenderWindow window(
         sf::VideoMode({windowWidth, windowHeight}),
         "NoGoNoLife"
     );
     window.setFramerateLimit(60);
+
+    lv1bot.init();
 
     while (window.isOpen()) {
         processEvents(window);
@@ -22,7 +26,7 @@ void GameWindow::run() {
 
 float GameWindow::boardSpacing() const {
     return (windowWidth - 2.f * boardMargin) /
-           static_cast<float>(boardSize - 1);
+           static_cast<float>(BOARDSIZE - 1);
 }
 
 bool GameWindow::pixelToBoardPosition(
@@ -39,8 +43,8 @@ bool GameWindow::pixelToBoardPosition(
         std::lround((static_cast<float>(pixel.y) - boardMargin) / spacing)
     );
 
-    if (column < 0 || column >= boardSize ||
-        row < 0 || row >= boardSize) {
+    if (column < 0 || column >= BOARDSIZE ||
+        row < 0 || row >= BOARDSIZE) {
         return false;
     }
 
@@ -59,6 +63,16 @@ bool GameWindow::pixelToBoardPosition(
     return true;
 }
 
+bool movewithai(int x, int y) {
+    if (placeStone(x, y, games.back().turn)) {
+        lv1bot.opponentMove(x, y);
+
+        lv1bot.ourTurn();
+    }
+
+    return 1;
+}
+
 void GameWindow::processEvents(sf::RenderWindow& window) {
     while (const std::optional event = window.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
@@ -73,10 +87,16 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
             if (KeyDownEvent->scancode == sf::Keyboard::Scancode::D) { // for testing only
                 CONSOLE_LOG("simulating\n");
 
+                auto beg = std::chrono::steady_clock::now();
+
                 MoveNode newnode;
                 newnode.last = *(games.end() - 2);
                 newnode.current = games.back();
-                CONSOLE_LOG("random play score: %d\n", simulateRandomPlay(newnode));
+                CONSOLE_LOG("random play score: %lf\n", simulateRandomPlay(newnode));
+
+                auto en = std::chrono::steady_clock::now();
+
+                CONSOLE_LOG("time simulated %d\n", std::chrono::duration_cast<std::chrono::milliseconds>(en - beg).count());
 
                 continue;
             }
@@ -95,9 +115,12 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
             int boardX = 0, boardY = 0;
 
             if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
-                if (placeStone(boardX, boardY, games.back().turn)) {
-                }
+                // if (placeStone(boardX, boardY, games.back().turn)) {
+                // }
+
+                movewithai(boardX, boardY);
             }
+            CONSOLE_LOG("clicked %d and %d\n", boardX, boardY);
             continue;
         }
     }
@@ -106,7 +129,7 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
 void GameWindow::drawBoard(sf::RenderWindow& window) {
     const float spacing = boardSpacing();
 
-    for (int i = 0; i < boardSize; ++i) {
+    for (int i = 0; i < BOARDSIZE; ++i) {
         const float offset = boardMargin + static_cast<float>(i) * spacing;
 
         sf::RectangleShape horizontal(
@@ -123,8 +146,8 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
         vertical.setFillColor(sf::Color::Black);
         window.draw(vertical);
     }
-    for (int i = 1; i < boardSize + 1; ++i) {
-        for (int j = 1; j < boardSize + 1; ++j) {
+    for (int i = 1; i < BOARDSIZE + 1; ++i) {
+        for (int j = 1; j < BOARDSIZE + 1; ++j) {
             const float radius = spacing * 0.45f;
             const float pixelX = boardMargin + (i - 1) * spacing;
             const float pixelY = boardMargin + (j - 1) * spacing;
@@ -150,7 +173,7 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
 void GameWindow::drawBoardAIDebug(sf::RenderWindow& window) {
     const float spacing = boardSpacing();
 
-    for (int i = 0; i < boardSize; ++i) {
+    for (int i = 0; i < BOARDSIZE; ++i) {
         const float offset = boardMargin + static_cast<float>(i) * spacing;
 
         sf::RectangleShape horizontal(
@@ -167,8 +190,8 @@ void GameWindow::drawBoardAIDebug(sf::RenderWindow& window) {
         vertical.setFillColor(sf::Color::Black);
         window.draw(vertical);
     }
-    for (int i = 1; i < boardSize + 1; ++i) {
-        for (int j = 1; j < boardSize + 1; ++j) {
+    for (int i = 1; i < BOARDSIZE + 1; ++i) {
+        for (int j = 1; j < BOARDSIZE + 1; ++j) {
             const float radius = spacing * 0.45f;
             const float pixelX = boardMargin + (i - 1) * spacing;
             const float pixelY = boardMargin + (j - 1) * spacing;

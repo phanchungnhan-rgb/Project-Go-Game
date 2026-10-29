@@ -15,7 +15,7 @@
 #include "debug/log.hpp"
 // #include "engine/AI.hpp"
 
-#define BOARDSIZE 19
+#define BOARDSIZE 9
 #define UNDOSTSZ 69
 
 const int8_t ADJCORD_X[4] = {1, 0, 0, -1};
@@ -36,7 +36,7 @@ struct Game {
             }
         }
         for (int i = 0; i < BOARDSIZE + 2; i++) {
-            current[0][i] = current[20][i] = current[i][0] = current[i][20] = 127;
+            current[0][i] = current[BOARDSIZE + 1][i] = current[i][0] = current[i][BOARDSIZE + 1] = 127;
         }
     }
 };
@@ -48,7 +48,7 @@ extern std::vector<Game> redo_stack;
 bool INVALID_MOVE();
 
 bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]);
-bool checkAndClear(Game &newgame, bool side);
+bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr);
 
 bool placeStone(int x, int y, bool side);
 

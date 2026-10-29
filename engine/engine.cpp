@@ -20,65 +20,69 @@ bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]
     return true;
 }
 
-bool checkAndClear(Game &newgame, bool side) {
+// clearptr is the vector that will receive back the empty intersection
+bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr) {
     bool deleted = false;
-    for (int i = 1; i < BOARDSIZE + 1; i++) {
-        for (int j = 1; j < BOARDSIZE + 1; j++) {
+    std::vector<std::pair<int8_t, int8_t>> cluster_all;
+    for (int _ = 0; _ < 5; _++) {
+        int adjx; if (_ < 4) adjx = x + ADJCORD_X[_]; else adjx = x;
+        int adjy; if (_ < 4) adjy = y + ADJCORD_Y[_]; else adjy = y;
 
-            if (newgame.current[i][j] == side + 1) {
-                std::queue<std::pair<int8_t, int8_t>> que;
-                que.push({i, j});
-                newgame.current[i][j] = 67;
+        if (newgame.current[adjx][adjy] == side + 1) {
+            std::queue<std::pair<int8_t, int8_t>> que;
+            que.push({adjx, adjy});
+            newgame.current[adjx][adjy] = 67;
 
-                bool cleared = false;
+            bool cleared = false;
 
-                std::vector<std::pair<int8_t, int8_t>> cluster;
+            std::vector<std::pair<int8_t, int8_t>> cluster;
 
-                while (que.size()) {
-                    int x = que.front().first;
-                    int y = que.front().second;
-                    que.pop();
+            while (que.size()) {
+                int x = que.front().first;
+                int y = que.front().second;
+                que.pop();
 
-                    cluster.push_back({x, y});
+                cluster.push_back({x, y});
+                cluster_all.push_back({x, y});
 
-                    for (int _ = 0; _ < 4; _++) {
-                        int adjx = x + ADJCORD_X[_];
-                        int adjy = y + ADJCORD_Y[_];
+                for (int _ = 0; _ < 4; _++) {
+                    int adjx = x + ADJCORD_X[_];
+                    int adjy = y + ADJCORD_Y[_];
 
-                        if (newgame.current[adjx][adjy] <= 0) {
-                            cleared = true;
-                        }
+                    if (newgame.current[adjx][adjy] <= 0) {
+                        cleared = true;
+                    }
 
-                        if (newgame.current[adjx][adjy] == side + 1) {
-                            que.push({adjx, adjy});
-                            newgame.current[adjx][adjy] = 67;
-                        }
+                    if (newgame.current[adjx][adjy] == side + 1) {
+                        que.push({adjx, adjy});
+                        newgame.current[adjx][adjy] = 67;
                     }
                 }
-
-                if (!cleared) {
-                    for (std::pair<int8_t, int8_t> &point : cluster) {
-                        newgame.current[point.first][point.second] = 0;
-                    }
-                    if (newgame.turn == side) {
-                        newgame.taken[!side] += cluster.size();
-                    }
-                    deleted = true;
-                } /* else {
-                    for (std::pair<int8_t, int8_t> &point : cluster) {
-                        newgame.current[point.first][point.second] = side + 1;
-                    }
-                } */ // wrong code, this will make the game check a cluster multiple time
             }
+
+            if (!cleared) {
+                cluster_all.resize(cluster_all.size() - cluster.size());
+                for (std::pair<int8_t, int8_t> &point : cluster) {
+                    newgame.current[point.first][point.second] = 0;
+                    if (clearptr != nullptr) {
+                        clearptr->push_back({point.first, point.second});
+                    }
+                }
+                if (newgame.turn == side) {
+                    newgame.taken[!side] += cluster.size();
+                }
+                deleted = true;
+            } /* else {
+                for (std::pair<int8_t, int8_t> &point : cluster) {
+                    newgame.current[point.first][point.second] = side + 1;
+                }
+            } */ // wrong code, this will make the game check a cluster multiple time
         }
     }
     
-    for (int i = 1; i < BOARDSIZE + 1; i++) {
-        for (int j = 1; j < BOARDSIZE + 1; j++) {
-
-            if (newgame.current[i][j] == 67) {
-                newgame.current[i][j] = side + 1;
-            }
+    for (std::pair<int8_t, int8_t> &point : cluster_all) {
+        if (newgame.current[point.first][point.second] == 67) {
+            newgame.current[point.first][point.second] = side + 1;
         }
     }
 
@@ -95,9 +99,9 @@ bool placeStone(int x, int y, bool side) {
 
     newgame.current[x][y] = 1 + side;
 
-    checkAndClear(newgame, !side);
+    checkAndClear(newgame, !side, x, y);
 
-    if (checkAndClear(newgame, side)) {
+    if (checkAndClear(newgame, side, x, y)) {
         return INVALID_MOVE();
     } else {
         if (cmpGameArray(newgame.current, (games.end() - 2)->current)) {
@@ -146,8 +150,8 @@ bool saveGame(char *file_name) {
     for (Game &game : games) {
         fprintf(save_file, "%d\n", game.turn);
 
-        for (int i = 1; i < BOARDSIZE; i++) {
-            for (int j = 1; j < BOARDSIZE; j++) {
+        for (int i = 1; i < BOARDSIZE + 1; i++) {
+            for (int j = 1; j < BOARDSIZE + 1; j++) {
                 fprintf(save_file, "%d ", game.current[i][j]);
             }
             fprintf(save_file, "\n");
@@ -160,8 +164,8 @@ bool saveGame(char *file_name) {
     for (Game &game : redo_stack) {
         fprintf(save_file, "%d\n", game.turn);
 
-        for (int i = 1; i < BOARDSIZE; i++) {
-            for (int j = 1; j < BOARDSIZE; j++) {
+        for (int i = 1; i < BOARDSIZE + 1; i++) {
+            for (int j = 1; j < BOARDSIZE + 1; j++) {
                 fprintf(save_file, "%d ", game.current[i][j]);
             }
             fprintf(save_file, "\n");
@@ -202,8 +206,8 @@ bool loadGame(char *file_name) {
 
         CONSOLE_LOG("this is %d\n", game.turn);
 
-        for (int i = 1; i < BOARDSIZE; i++) {
-            for (int j = 1; j < BOARDSIZE; j++) {
+        for (int i = 1; i < BOARDSIZE + 1; i++) {
+            for (int j = 1; j < BOARDSIZE + 1; j++) {
                 
                 fscanf(save_file, "%d ", &game.current[i][j]);
             }
@@ -219,8 +223,8 @@ bool loadGame(char *file_name) {
         game.turn = x;
         if (x == -44) break;
 
-        for (int i = 1; i < BOARDSIZE; i++) {
-            for (int j = 1; j < BOARDSIZE; j++) {
+        for (int i = 1; i < BOARDSIZE + 1; i++) {
+            for (int j = 1; j < BOARDSIZE + 1; j++) {
                 
                 fscanf(save_file, "%d ", &game.current[i][j]);
             }

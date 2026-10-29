@@ -14,7 +14,7 @@ public:
 private:
     static constexpr unsigned int windowWidth = 800;
     static constexpr unsigned int windowHeight = 800;
-    static constexpr int boardSize = 19;
+    static constexpr int boardSize = BOARDSIZE;
     static constexpr float boardMargin = 40.f;
 
     float boardSpacing() const;
