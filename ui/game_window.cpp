@@ -89,7 +89,7 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
 
                 auto beg = std::chrono::steady_clock::now();
 
-                MoveNode newnode;
+                MoveNode newnode(0, 0);
                 newnode.last = *(games.end() - 2);
                 newnode.current = games.back();
                 CONSOLE_LOG("random play score: %lf\n", simulateRandomPlay(newnode));

@@ -50,22 +50,27 @@ int eyesCounter(Game &game, std::vector<std::pair<int8_t, int8_t>> &group) {
     return cnt;
 }
 
+const double reward_capture = 1.4;
+const double reward_eyefill = -4;
+
 // simulate a move for AI, aside from rule breaking moves, moves that are suicidal are negative, while big capturing moves are large positive
-bool SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr, bool allow_eye_filling) {
-    if (game.current[x][y]) return false;
+double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr, bool allow_eye_filling) {
+    if (game.current[x][y]) return INVALID_SIM;
+
+    double score = 0;
 
     Game newgame = game;
     newgame.turn = !side;
 
     newgame.current[x][y] = 1 + side;
 
-    checkAndClear(newgame, !side, x, y, clearptr);
+    score += reward_capture * checkAndClear(newgame, !side, x, y, clearptr);
 
     if (checkAndClear(newgame, side, x, y)) {
-        return false;
+        return INVALID_SIM;
     } else {
         if (cmpGameArray(newgame.current, previousgame.current)) {
-            return false;
+            return INVALID_SIM;
         }
 
         std::queue<std::pair<int8_t, int8_t>> que;
@@ -100,22 +105,25 @@ bool SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::
             newgame.current[point.first][point.second] = side + 1;
         }
 
+
         if (holecnt == 1) {
+            bool eyefill = true;
             for (int _ = 0; _ < 4; _++) {
                 int adjx = x + ADJCORD_X[_];
                 int adjy = y + ADJCORD_Y[_];
 
                 if (newgame.current[adjx][adjy] == 0 || newgame.current[adjx][adjy] == (!side) + 1) {
+                    eyefill = false;
                 } else {
-                    return 0;
                 }
             }
+            score += eyefill * reward_eyefill;
         }
         previousgame = game;
         game = newgame;
-        return 1;
+        return normlizeScore(score);
     }
-    return false;
+    return INVALID_SIM;
 }
 bool simulatePass(Game &game, Game &previousgame, bool side) {
     Game newgame;
@@ -169,12 +177,13 @@ double simulateRandomPlay(MoveNode node) {
 
     std::vector<std::pair<int8_t, int8_t>> newintersections;
     
-    for (int plies = 0; plies < 4 * BOARDSIZE * BOARDSIZE; plies++) {
+    // tune the maximum for plies
+    for (int plies = 0; plies < 0.5 * BOARDSIZE * BOARDSIZE; plies++) {
         bool moved = false;
         int i;
         for (i = 0; i < moves.size(); i++) {
             newintersections.clear();
-            if (SimulateMove(node.current, node.last, node.current.turn, moves.front().first, moves.front().second, &newintersections)) {
+            if (std::isfinite(SimulateMove(node.current, node.last, node.current.turn, moves.front().first, moves.front().second, &newintersections))) {
                 moved = 1;
                 for (std::pair<int8_t, int8_t> &intersection : newintersections) moves.push_back(intersection);
                 moves.pop_front();
@@ -200,5 +209,5 @@ double simulateRandomPlay(MoveNode node) {
         }
     }
 
-    return 0;
+    return roughScoring(node.current);
 }

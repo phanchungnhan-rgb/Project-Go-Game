@@ -23,47 +23,90 @@
 
 #define ln(x) log(x)
 #define MCTSHEAT sqrt(2)
+#define MCTSBIAS 1
+
+#define INVALID_SIM std::nan("1")
+
+
+double normlizeScore(double score);
+
+double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr, bool allow_eye_filling = 0);
+bool simulatePass(Game &game, Game &previousgame, bool side);
+double roughScoring(Game &game);
 
 struct MoveNode {
     Game last;
     Game current;
 
-    // we dont have to worry about which item in the set is the current child because its in the first of the set
-    // so we just have to recalculate the first of the set each time we simulate
-    std::set<std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *>, std::greater<std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *>>> childs; // (weight; x; y); child node
+    int x, y;
+
+    MoveNode(int xx = 0, int yy = 0) {
+        x = xx;
+        y = yy;
+    }
+
+    std::vector<MoveNode *> unexplored_childs;
+
+    // i was wrong, this will have to be recalculated every tree traversal
+    std::vector<MoveNode *> childs; // (weight; x; y); child node
 
     MoveNode *parent = nullptr;
 
     double w = 0, n = 0;
 
+    double bonus = 0;
+
+    static bool cmpBonus(MoveNode *a, MoveNode *b) {
+        return a->bonus < b->bonus;
+    }
+
+    double calculateWeight(bool side = 1) {
+        if (parent->current.turn == side) return (w / n) + MCTSHEAT * sqrt(ln(parent->n)/n) + (MCTSBIAS * bonus / (n + 1));
+        else return (-1 * (w / n)) + MCTSHEAT * sqrt(ln(parent->n)/n) + (MCTSBIAS * bonus / (n + 1));
+    }
+
     void resetChilds() {
+        unexplored_childs.clear();
         childs.clear();
         for (int8_t i = 1; i <= BOARDSIZE; i++) {
             for (int8_t j = 1; j <= BOARDSIZE; j++) {
                 if (current.current[i][j] == 0) {
-                    childs.insert({{INFINITY, {i, j}}, nullptr}); // the weight is -1 so the untouched will end up at the end of the set, and it will be checked first in the code bellow
+                    bool is_valid_move = 0; // only place moves next to some stone and 
+                    if ((i % 4 == 0) && (j % 4 == 0)) is_valid_move = 1;
+                    for (int _ = 0; _ < 8; _++) {
+                        int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
+                        if (current.current[x][y] == 1 || current.current[x][y] == 2) is_valid_move = 1;
+                    } 
+                    if (!is_valid_move) continue; 
+                    unexplored_childs.push_back(new MoveNode(i, j));
+                    unexplored_childs.back()->last = last;
+                    unexplored_childs.back()->current = current;
+                    unexplored_childs.back()->parent = this;
+                    double move_score = SimulateMove(unexplored_childs.back()->current, unexplored_childs.back()->last, unexplored_childs.back()->current.turn, i, j);
+                    if (std::isfinite(move_score)) {
+                        unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
+                        // unexplored_childs.back().first.first = move_score;
+                    } else {
+                        delete unexplored_childs.back();
+                        unexplored_childs.pop_back();
+                    }
                 }
             }
         }
+        std::sort(unexplored_childs.begin(), unexplored_childs.end(), cmpBonus /*, std::greater<std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *>>()*/);
     }
 };
-
-double normlizeScore(double score);
-
-bool SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr, bool allow_eye_filling = 0);
-bool simulatePass(Game &game, Game &previousgame, bool side);
-double roughScoring(Game &game);
 
 double simulateRandomPlay(MoveNode node);
 
 struct MCTSBOT {
-    MoveNode *root = new MoveNode;
+    MoveNode *root = new MoveNode(0, 0);
 
     int max_thinking_time;
 
     bool side;
 
-    MCTSBOT(bool ourside = 1, int maxtimethink = 3000) {
+    MCTSBOT(bool ourside = 1, int maxtimethink = 1500) {
         side = ourside;
         max_thinking_time = maxtimethink;
     }
@@ -82,59 +125,76 @@ struct MCTSBOT {
         while (true) {
             MoveNode *currentNode = root;
 
-            while (currentNode->childs.begin()->second != nullptr) {
-                currentNode = currentNode->childs.begin()->second;
+            std::stack<int> idstack;
+
+            while (currentNode->unexplored_childs.empty() && !currentNode->childs.empty()) {
+                int id = 0;
+                for (int i = 0; i < currentNode->childs.size(); i++) {
+                    if (currentNode->childs[id]->calculateWeight(side) < currentNode->childs[i]->calculateWeight(side)) {
+                        id = i;
+                    }
+                }
+                currentNode = currentNode->childs[id];
+                idstack.push(id);
             }
 
-            std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *> achild;
+            MoveNode *achild;
 
             bool can_move = 0;
 
-            while (!currentNode->childs.empty()) {
-                achild = *currentNode->childs.begin();
-                currentNode->childs.erase(currentNode->childs.begin());
+            while (!currentNode->unexplored_childs.empty()) {
+                achild = currentNode->unexplored_childs.back(); currentNode->unexplored_childs.pop_back();
 
+                /*
                 achild.second = new MoveNode; // this is the newly created node
                 achild.second->parent = currentNode;
                 achild.second->last = currentNode->last;
                 achild.second->current = currentNode->current;
+                */
 
-                if (SimulateMove(achild.second->current, achild.second->last, achild.second->current.turn, achild.first.second[0], achild.first.second[1])) {
-                    achild.second->resetChilds();
+                CONSOLE_LOG("checking child out\n");
 
-                    currentNode->childs.insert(achild);
+                if (true) {
+                    achild->resetChilds();
 
-                    CONSOLE_LOG("simulating\n");
-                    double score = simulateRandomPlay(*(achild.second));
-                    CONSOLE_LOG("simulating done\n");
+                    // currentNode->childs.insert(achild);
+
+                    double score = simulateRandomPlay(*(achild));
 
                     score = normlizeScore(score);
 
-                    achild.second->w = score;
-                    achild.second->n = 1;
+                    achild->w = score;
+                    achild->n = 1;
+
+                    bool isleaf = 1;
+
+                    idstack.push(currentNode->childs.size());
+                    currentNode->childs.push_back(achild);
                     
                     while (currentNode != nullptr) {
                         currentNode->n += 1;
                         currentNode->w += score;
 
-                        achild = *currentNode->childs.begin(); currentNode->childs.erase(currentNode->childs.begin());
+                        MoveNode * &curchild = currentNode->childs[idstack.top()]; idstack.pop();
 
+                        /* old code
                         if (currentNode->current.turn == side) {
-                            achild.first.first = (achild.second->w / achild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/achild.second->n); // calc
+                            curchild.first.first = (curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
                         } else {
-                            achild.first.first = -(achild.second->w / achild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/achild.second->n); // calc
+                            curchild.first.first = -(curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
                         }
-
-                        currentNode->childs.insert(achild);
+                        */
 
                         currentNode = currentNode->parent;
                     }
+
+                    CONSOLE_LOG("done back tracking\n");
 
                     can_move = 1;
 
                     break;
                 } else {
-                    delete achild.second;
+                    delete achild;
                 }
             }
 
@@ -152,15 +212,15 @@ struct MCTSBOT {
                     currentNode->n += 1;
                     currentNode->w += score;
 
-                    achild = *currentNode->childs.begin(); currentNode->childs.erase(currentNode->childs.begin());
+                    MoveNode * &curchild = currentNode->childs[idstack.top()]; idstack.pop();
 
+                    /* old code
                     if (currentNode->current.turn == side) {
-                        achild.first.first = (achild.second->w / achild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/achild.second->n); // calc
+                        curchild.first.first = (curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
                     } else {
-                        achild.first.first = -(achild.second->w / achild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/achild.second->n); // calc
+                        curchild.first.first = -(curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
                     }
-
-                    currentNode->childs.insert(achild);
+                    */
 
                     currentNode = currentNode->parent;
                 }
@@ -174,31 +234,40 @@ struct MCTSBOT {
         }
 
         // calc done, give move
-        std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *> candidate_child = *(--(root->childs.end()));
-        for (std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *> achild : root->childs) {
-            if (achild.second != nullptr) if (achild.second->n > candidate_child.second->n) {
+        MoveNode * candidate_child = *(--(root->childs.end()));
+        for (MoveNode * achild : root->childs) {
+            if (achild != nullptr) if (achild->n > candidate_child->n) {
                 candidate_child = achild;
             }
         }
 
-        placeStone(candidate_child.first.second[0], candidate_child.first.second[1], side); // move in engine
-        root = candidate_child.second; // move in AI
+        placeStone(candidate_child->x, candidate_child->y, side); // move in engine
+        root = candidate_child; // move in AI
         root->parent = nullptr;
-        CONSOLE_LOG("MOVED : %d %d\n", candidate_child.first.second[0], candidate_child.first.second[1]);
+        CONSOLE_LOG("MOVED : %d %d\n", candidate_child->x, candidate_child->y);
     }
     void opponentMove(int8_t x, int8_t y) {
-        for (std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *> achild : root->childs) {
-            if (achild.first.second[0] == x && achild.first.second[1] == y) {
-                if (achild.second == nullptr) {
-                    achild.second = new MoveNode;
-                    achild.second->current = root->current;
-                    achild.second->last = root->last;
-                    achild.second->resetChilds();
-                }
-                SimulateMove(achild.second->current, achild.second->last, achild.second->current.turn, achild.first.second[0], achild.first.second[1], nullptr, true);
-                root = achild.second;
+        bool moved = false;
+        for (MoveNode * achild : root->unexplored_childs) {
+            if (achild->x == x && achild->y == y) {
+                achild->resetChilds();
+                root = achild;
                 root->parent = nullptr;
+                moved = 1;
             }
         }
+        if (moved) return;
+        for (MoveNode * achild : root->childs) {
+            if (achild->x == x && achild->y == y) {
+                root = achild;
+                root->parent = nullptr;
+                moved = 1;
+            }
+        }
+        if (moved) return;
+
+        SimulateMove(root->current, root->last, root->current.turn, x, y);       
+         
+        root->resetChilds();
     }
 };

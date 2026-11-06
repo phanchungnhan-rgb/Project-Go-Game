@@ -21,6 +21,9 @@
 const int8_t ADJCORD_X[4] = {1, 0, 0, -1};
 const int8_t ADJCORD_Y[4] = {0, -1, 1, 0};
 
+const int8_t PROCORD_X[8] = {1, 0, 0, -1, -1, 1, -1, 1};
+const int8_t PROCORD_Y[8] = {0, -1, 1, 0, -1, -1, 1, 1};
+
 struct Game {
     int8_t current[BOARDSIZE + 2][BOARDSIZE + 2];
 
