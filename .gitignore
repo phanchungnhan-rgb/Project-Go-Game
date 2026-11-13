@@ -8,3 +8,6 @@ build/
 
 # Ignore external libariies
 vendored/*
+
+# Ignore log
+log.txt

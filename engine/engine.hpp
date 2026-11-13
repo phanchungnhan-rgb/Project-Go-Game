@@ -15,7 +15,7 @@
 #include "debug/log.hpp"
 // #include "engine/AI.hpp"
 
-#define BOARDSIZE 9
+#define BOARDSIZE 19
 #define UNDOSTSZ 69
 
 const int8_t ADJCORD_X[4] = {1, 0, 0, -1};
@@ -51,6 +51,7 @@ extern std::vector<Game> redo_stack;
 bool INVALID_MOVE();
 
 bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]);
+int countLiberty(Game &game, int8_t xxx, int8_t yyy);
 bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr);
 
 bool placeStone(int x, int y, bool side);

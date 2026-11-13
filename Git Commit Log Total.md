@@ -1,6 +1,12 @@
 TAB1540 - 26125005 - Thai Bao Anh
 phanchungnhan-rgb - 26125055 - Phan Chung Nhan
 
+commit 21c754649b1afa8dbb99ce55daf4472582db6a0c
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Fri Nov 6 20:36:02 2026 +0700
+
+    redid AI code, AI is now less stupid
+
 commit 9fb0f861ef5926ef8f2c473e28bcf74924c11414
 Author: TAB1540 <thaibaoanh93@gmail.com>
 Date:   Thu Oct 29 15:51:21 2026 +0700

@@ -5,7 +5,7 @@
 
 
 #include "debug/log.hpp"
-#include "engine/AI.hpp"
+#include "engine/MCTSRandomAI.hpp"
 #include "engine/engine.hpp"
 #include "ui/game_window.hpp"
 

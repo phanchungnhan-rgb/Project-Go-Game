@@ -20,6 +20,50 @@ bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]
     return true;
 }
 
+int countLiberty(Game &game, int8_t xxx, int8_t yyy) {
+    std::queue<std::pair<int8_t, int8_t>> que;
+    que.push({xxx, yyy});
+
+    bool side = game.current[xxx][yyy] - 1;
+
+    game.current[xxx][yyy] = 67;
+
+    std::vector<std::pair<int8_t, int8_t>> cluster_stone, cluster_lib;
+
+    int cnt = 0;
+
+    while (que.size()) {
+        int x = que.front().first;
+        int y = que.front().second;
+        que.pop();
+
+        cluster_stone.push_back({x, y});
+
+        for (int _ = 0; _ < 4; _++) {
+            int adjx = x + ADJCORD_X[_];
+            int adjy = y + ADJCORD_Y[_];
+
+            if (game.current[adjx][adjy] <= 0) {
+                cnt++;
+                game.current[adjx][adjy] = 69;
+                cluster_lib.push_back({adjx, adjy});
+            }
+
+            if (game.current[adjx][adjy] == side + 1) {
+                que.push({adjx, adjy});
+                game.current[adjx][adjy] = 67;
+            }
+        }
+    }
+    for (std::pair<int8_t, int8_t> &point : cluster_stone) {
+        game.current[point.first][point.second] = side + 1;
+    }
+    for (std::pair<int8_t, int8_t> &point : cluster_lib) {
+        game.current[point.first][point.second] = 0;
+    }
+    return cnt;
+}
+
 // clearptr is the vector that will receive back the empty intersection
 bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr) {
     bool deleted = false;

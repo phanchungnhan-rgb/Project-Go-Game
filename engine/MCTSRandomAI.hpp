@@ -23,14 +23,14 @@
 
 #define ln(x) log(x)
 #define MCTSHEAT sqrt(2)
-#define MCTSBIAS 1
+#define MCTSBIAS 367
 
 #define INVALID_SIM std::nan("1")
 
 
 double normlizeScore(double score);
 
-double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr, bool allow_eye_filling = 0);
+double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr, bool allow_eye_filling = 0, int lx = -1, int ly = -1);
 bool simulatePass(Game &game, Game &previousgame, bool side);
 double roughScoring(Game &game);
 
@@ -72,7 +72,7 @@ struct MoveNode {
             for (int8_t j = 1; j <= BOARDSIZE; j++) {
                 if (current.current[i][j] == 0) {
                     bool is_valid_move = 0; // only place moves next to some stone and 
-                    if ((i % 4 == 0) && (j % 4 == 0)) is_valid_move = 1;
+                    if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
                     for (int _ = 0; _ < 8; _++) {
                         int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
                         if (current.current[x][y] == 1 || current.current[x][y] == 2) is_valid_move = 1;
@@ -82,7 +82,7 @@ struct MoveNode {
                     unexplored_childs.back()->last = last;
                     unexplored_childs.back()->current = current;
                     unexplored_childs.back()->parent = this;
-                    double move_score = SimulateMove(unexplored_childs.back()->current, unexplored_childs.back()->last, unexplored_childs.back()->current.turn, i, j);
+                    double move_score = SimulateMove(unexplored_childs.back()->current, unexplored_childs.back()->last, unexplored_childs.back()->current.turn, i, j, nullptr, false, x, y);
                     if (std::isfinite(move_score)) {
                         unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
                         // unexplored_childs.back().first.first = move_score;
@@ -106,7 +106,7 @@ struct MCTSBOT {
 
     bool side;
 
-    MCTSBOT(bool ourside = 1, int maxtimethink = 1500) {
+    MCTSBOT(bool ourside = 1, int maxtimethink = 2200) {
         side = ourside;
         max_thinking_time = maxtimethink;
     }
@@ -122,7 +122,9 @@ struct MCTSBOT {
     void ourTurn() {
         auto time_begin = std::chrono::steady_clock::now();
 
+        int simcnt = 0; // performance testing
         while (true) {
+            simcnt++;
             MoveNode *currentNode = root;
 
             std::stack<int> idstack;
@@ -144,15 +146,6 @@ struct MCTSBOT {
 
             while (!currentNode->unexplored_childs.empty()) {
                 achild = currentNode->unexplored_childs.back(); currentNode->unexplored_childs.pop_back();
-
-                /*
-                achild.second = new MoveNode; // this is the newly created node
-                achild.second->parent = currentNode;
-                achild.second->last = currentNode->last;
-                achild.second->current = currentNode->current;
-                */
-
-                CONSOLE_LOG("checking child out\n");
 
                 if (true) {
                     achild->resetChilds();
@@ -187,8 +180,6 @@ struct MCTSBOT {
 
                         currentNode = currentNode->parent;
                     }
-
-                    CONSOLE_LOG("done back tracking\n");
 
                     can_move = 1;
 
@@ -228,9 +219,10 @@ struct MCTSBOT {
 
             auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time_begin).count();
 
-            CONSOLE_LOG("time elapsed: %d\n", (int) (time_elapsed - max_thinking_time));
-
-            if (time_elapsed > max_thinking_time) break;
+            if (time_elapsed > max_thinking_time) {
+                CONSOLE_LOG("time elapsed: %d with %d simulations\n", (int) (time_elapsed), simcnt);
+                break;
+            }
         }
 
         // calc done, give move
@@ -266,8 +258,22 @@ struct MCTSBOT {
         }
         if (moved) return;
 
-        SimulateMove(root->current, root->last, root->current.turn, x, y);       
+        root->unexplored_childs.push_back(new MoveNode(x, y));
+        root->unexplored_childs.back()->last = root->last;
+        root->unexplored_childs.back()->current = root->current;
+        root->unexplored_childs.back()->parent = root;
+        double move_score = SimulateMove(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn, x, y, nullptr, false, root->x, root->y);
+        if (std::isfinite(move_score)) {
+            root->unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
+            // unexplored_childs.back().first.first = move_score;
+        } else {
+            delete root->unexplored_childs.back();
+            root->unexplored_childs.pop_back();
+        }
          
-        root->resetChilds();
+        root->unexplored_childs.back()->resetChilds();
+        root = root->unexplored_childs.back();
+        root->parent = nullptr;
+        moved = 1;
     }
 };

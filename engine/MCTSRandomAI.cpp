@@ -1,6 +1,9 @@
-#include "AI.hpp"
+#include "MCTSRandomAI.hpp"
 
 double normlizeScore(double score) {
+    if (score < -1) return -1;
+    if (score > 1) return 1;
+    return score;
     return tanh(score / 2);
 }
 
@@ -50,21 +53,33 @@ int eyesCounter(Game &game, std::vector<std::pair<int8_t, int8_t>> &group) {
     return cnt;
 }
 
-const double reward_capture = 1.4;
-const double reward_eyefill = -4;
+const double reward_capture = 0.5;
+const double reward_eyefill = -0.3;
+const double reward_selfatari = -0.2;
+const double reward_atari_esc = 0.4;
+const double reward_move_nextto_lastmove = 0.1;
 
 // simulate a move for AI, aside from rule breaking moves, moves that are suicidal are negative, while big capturing moves are large positive
-double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr, bool allow_eye_filling) {
+double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr, bool allow_eye_filling, int lx, int ly) {
     if (game.current[x][y]) return INVALID_SIM;
 
     double score = 0;
 
+    if (abs(lx - x) < 2 || abs(ly - y) < 2) score += reward_move_nextto_lastmove; // reward move that are close to opponent last move
+
     Game newgame = game;
     newgame.turn = !side;
 
+    int minilibcnt = 67;
+    for (int _ = 0; _ < 4; _++) {
+        int adjx = x + ADJCORD_X[_];
+        int adjy = y + ADJCORD_Y[_];
+        if (game.current[adjx][adjy] == side + 1) minilibcnt = std::min(minilibcnt, countLiberty(newgame, adjx, adjy));
+    }
+
     newgame.current[x][y] = 1 + side;
 
-    score += reward_capture * checkAndClear(newgame, !side, x, y, clearptr);
+    score += reward_capture * checkAndClear(newgame, !side, x, y, clearptr); // reward capturing
 
     if (checkAndClear(newgame, side, x, y)) {
         return INVALID_SIM;
@@ -117,8 +132,17 @@ double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std
                 } else {
                 }
             }
-            score += eyefill * reward_eyefill;
+            score += eyefill * reward_eyefill; // disengourage eyefill
         }
+
+        int grouplibcnt = countLiberty(newgame, x, y);
+
+        if (grouplibcnt == 1) {
+            score += reward_selfatari; // disencourage putting itself into atari
+        } else {
+            if (minilibcnt == 1 && grouplibcnt > 1) score += reward_atari_esc; // raward escaping from atari
+        }
+
         previousgame = game;
         game = newgame;
         return normlizeScore(score);
@@ -169,6 +193,13 @@ double simulateRandomPlay(MoveNode node) {
     std::deque<std::pair<int8_t, int8_t>> moves;
     for (int i = 1; i <= BOARDSIZE; i++) {
         for (int j = 1; j <= BOARDSIZE; j++) {
+            bool is_valid_move = 0; // only place moves next to some stone and 
+            if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
+            for (int _ = 0; _ < 8; _++) {
+                int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
+                if (node.current.current[x][y] == 1 || node.current.current[x][y] == 2) is_valid_move = 1;
+            } 
+            if (!is_valid_move) continue; 
             if (node.current.current[i][j] == 0) moves.push_back({i, j});
         }
     }
@@ -178,14 +209,23 @@ double simulateRandomPlay(MoveNode node) {
     std::vector<std::pair<int8_t, int8_t>> newintersections;
     
     // tune the maximum for plies
-    for (int plies = 0; plies < 0.5 * BOARDSIZE * BOARDSIZE; plies++) {
+    for (int plies = 0; plies < 0.08 * BOARDSIZE * BOARDSIZE; plies++) {
         bool moved = false;
         int i;
         for (i = 0; i < moves.size(); i++) {
             newintersections.clear();
             if (std::isfinite(SimulateMove(node.current, node.last, node.current.turn, moves.front().first, moves.front().second, &newintersections))) {
                 moved = 1;
-                for (std::pair<int8_t, int8_t> &intersection : newintersections) moves.push_back(intersection);
+                for (std::pair<int8_t, int8_t> &intersection : newintersections) {
+                    bool is_valid_move = 0; // only place moves next to some stone and 
+                    if ((intersection.first % 5 == 0) && (intersection.second % 5 == 0)) is_valid_move = 1;
+                    for (int _ = 0; _ < 8; _++) {
+                        int x = intersection.first + PROCORD_X[_], y = intersection.second + PROCORD_Y[_];
+                        if (node.current.current[x][y] == 1 || node.current.current[x][y] == 2) is_valid_move = 1;
+                    } 
+                    if (!is_valid_move) continue; 
+                    moves.push_back(intersection);
+                }
                 moves.pop_front();
                 break;
             }

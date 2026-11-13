@@ -22,8 +22,10 @@ add_library(DebugUtil
 add_library(Engine
     engine/engine.hpp
     engine/engine.cpp
-    engine/AI.hpp
-    engine/AI.cpp
+    engine/MCTSRandomAI.hpp
+    engine/MCTSRandomAI.cpp
+    engine/MinimaxAI.hpp
+    engine/MinimaxAI.cpp
 ) 
 
 target_sources(NoGoNoLife
