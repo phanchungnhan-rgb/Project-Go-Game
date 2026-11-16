@@ -161,6 +161,18 @@ bool placeStone(int x, int y, bool side) {
     return INVALID_MOVE();
 }  
 
+bool passTurn(bool side) {
+    Game newgame;
+    newgame = games.back();
+    newgame.turn = !side;
+
+    while (!redo_stack.empty()) redo_stack.pop_back();
+
+    games.push_back(newgame);
+    if (games.size() > UNDOSTSZ) games.pop_front();
+    return true;
+}
+
 bool undoMove() {
     if (games.size() <= 2) {
         return INVALID_MOVE();

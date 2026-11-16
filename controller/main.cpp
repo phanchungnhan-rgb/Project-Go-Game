@@ -2,5 +2,8 @@
 
 int main() {
     GameWindow gameWindow;
+
+    mctsR.init();
+    
     gameWindow.run();
 }

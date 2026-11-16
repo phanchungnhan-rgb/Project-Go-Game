@@ -55,6 +55,7 @@ int countLiberty(Game &game, int8_t xxx, int8_t yyy);
 bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr);
 
 bool placeStone(int x, int y, bool side);
+bool passTurn(bool side);
 
 bool undoMove();
 bool redoMove();

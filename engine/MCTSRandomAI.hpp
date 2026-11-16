@@ -23,7 +23,7 @@
 
 #define ln(x) log(x)
 #define MCTSHEAT sqrt(2)
-#define MCTSBIAS 367
+#define MCTSBIAS 361
 
 #define INVALID_SIM std::nan("1")
 
@@ -119,7 +119,7 @@ struct MCTSBOT {
         return 1;
     }
 
-    void ourTurn() {
+    std::pair<int, int> ourTurn() {
         auto time_begin = std::chrono::steady_clock::now();
 
         int simcnt = 0; // performance testing
@@ -233,10 +233,12 @@ struct MCTSBOT {
             }
         }
 
-        placeStone(candidate_child->x, candidate_child->y, side); // move in engine
+        // placeStone(candidate_child->x, candidate_child->y, side); // move in engine
         root = candidate_child; // move in AI
         root->parent = nullptr;
-        CONSOLE_LOG("MOVED : %d %d\n", candidate_child->x, candidate_child->y);
+        CONSOLE_LOG("CANDIDATE MOVE : %d %d\n", candidate_child->x, candidate_child->y);
+
+        return {candidate_child->x, candidate_child->y};
     }
     void opponentMove(int8_t x, int8_t y) {
         bool moved = false;
@@ -262,7 +264,9 @@ struct MCTSBOT {
         root->unexplored_childs.back()->last = root->last;
         root->unexplored_childs.back()->current = root->current;
         root->unexplored_childs.back()->parent = root;
-        double move_score = SimulateMove(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn, x, y, nullptr, false, root->x, root->y);
+        double move_score = 0;
+        if (x > 0 && y > 0) move_score = SimulateMove(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn, x, y, nullptr, false, root->x, root->y);
+        else simulatePass(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn);
         if (std::isfinite(move_score)) {
             root->unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
             // unexplored_childs.back().first.first = move_score;

@@ -4,7 +4,7 @@
 // 1 = show AI simulation (Debug)
 int render_mode = 0;
 
-MCTSBOT lv1bot;
+GameMenu gameMenu({380, 800 - 40}, "sample");
 
 void GameWindow::run() {
     sf::RenderWindow window(
@@ -14,9 +14,9 @@ void GameWindow::run() {
     );
     window.setFramerateLimit(60);
 
-    lv1bot.init();
-
-    MenuButton testButton({1000, 200}, "This is nut");
+    gameMenu.size = {380, windowHeight - boardMargin};
+    gameMenu.setPosition({800, boardMargin / 2});
+    gameMenu.setFillColor(sf::Color(220, 179, 92));
 
     while (window.isOpen()) {
         processEvents(window);
@@ -24,7 +24,8 @@ void GameWindow::run() {
         window.clear(sf::Color(220, 179, 92));
         window.clear(sf::Color(0, 0, 0));
         drawBoard(window);
-        // testButton.drawButton(window);
+        
+        gameMenu.drawMenu(window);
         window.display();
     }
 }
@@ -68,36 +69,49 @@ bool GameWindow::pixelToBoardPosition(
     return true;
 }
 
-bool movewithai(int x, int y) {
-    if (placeStone(x, y, games.back().turn)) {
-        lv1bot.opponentMove(x, y);
+void GameWindow::MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent) {
+    std::cout << "new mouse x: " << mouseButtonEvent->position.x << std::endl;
+    std::cout << "new mouse y: " << mouseButtonEvent->position.y << std::endl;
 
-        lv1bot.ourTurn();
+    if (pixelToBoardPosition(mouseButtonEvent->position, stoneHoverX, stoneHoverY)) {
+    } else {
+        stoneHoverX = 0;
+        stoneHoverY = 0;
     }
 
-    return 1;
+
+    gameMenu.hoverHandler(mouseButtonEvent);
+}
+
+void GameWindow::MouseButtonPressedEventHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+
+    gameMenu.pressedHandler(mouseButtonEvent);
+}
+
+void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (mouseButtonEvent->button == sf::Mouse::Button::Left) {
+        int boardX = 0, boardY = 0;
+
+        if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
+            // if (placeStone(boardX, boardY, games.back().turn)) {
+            // }
+
+            if (boardX != 0 && boardY != 0) stonePlaceEvent(boardX, boardY);
+        }
+        CONSOLE_LOG("clicked %d and %d\n", boardX, boardY);
+    }
+
+    gameMenu.releasedHandler(mouseButtonEvent);
 }
 
 void GameWindow::processEvents(sf::RenderWindow& window) {
-    while (const std::optional event = window.pollEvent()) {
+    while (std::optional event = window.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
             window.close();
         }
 
-        if (const auto* mouseMoved = event->getIf<sf::Event::MouseMoved>())
-        {
-            std::cout << "new mouse x: " << mouseMoved->position.x << std::endl;
-            std::cout << "new mouse y: " << mouseMoved->position.y << std::endl;
 
-            if (pixelToBoardPosition(mouseMoved->position, stoneHoverX, stoneHoverY)) {
-
-            } else {
-                stoneHoverX = 0;
-                stoneHoverY = 0;
-            }
-        }
-
-        if (const auto* KeyDownEvent = event->getIf<sf::Event::KeyPressed>()) {
+        if (auto* KeyDownEvent = event->getIf<sf::Event::KeyPressed>()) {
             if (KeyDownEvent->scancode == sf::Keyboard::Scancode::A) {
                 render_mode = 1;
                 continue;
@@ -120,35 +134,28 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
             }
             continue;
         }
-        if (const auto* KeyUpEvent = event->getIf<sf::Event::KeyReleased>()) {
+        if (auto* KeyUpEvent = event->getIf<sf::Event::KeyReleased>()) {
             if (KeyUpEvent->scancode == sf::Keyboard::Scancode::A) {
                 render_mode = 0;
             }
             continue;
         }
-        if (const auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
-            if (mouseButtonEvent->button != sf::Mouse::Button::Left) {
-                continue;
-            }
-            int boardX = 0, boardY = 0;
-
-            if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
-                // if (placeStone(boardX, boardY, games.back().turn)) {
-                // }
-
-                movewithai(boardX, boardY);
-            }
-            CONSOLE_LOG("clicked %d and %d\n", boardX, boardY);
-            continue;
+        
+        if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseMoved>()) {
+            MouseMoveEventHandler(mouseButtonEvent);
+        }
+        if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
+        }
+        if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonReleased>()) {
+            MouseButtonReleasedEventHandler(mouseButtonEvent);
         }
     }
 }
 
-void GameWindow::drawStone(sf::RenderWindow& window, int x, int y, sf::Color color) {
+void GameWindow::drawStone(sf::RenderWindow& window, int x, int y, sf::Color color, float radius) {
     const float spacing = boardSpacing();
-    const float radius = spacing * 0.45f;
-    const float pixelX = boardMargin + (x - 1) * spacing;
-    const float pixelY = boardMargin + (y - 1) * spacing;
+    const float pixelX = boardMargin + (x - 1) * spacing + 0.2 * ((((x * y + 67) * 131) % 24) - 24 / 2);
+    const float pixelY = boardMargin + (y - 1) * spacing + 0.2 * ((((y * x + 131) * 67) % 24) - 24 / 2);
     sf::CircleShape stone(radius);
     stone.setOrigin({radius, radius});
     stone.setPosition({pixelX, pixelY});
@@ -199,18 +206,21 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
 
     // draw the hover
     if (stoneHoverX != 0 && stoneHoverY != 0) {
-        drawStone(window, stoneHoverX, stoneHoverY, sf::Color(0, 0, 0, 50));
+        drawStone(window, stoneHoverX, stoneHoverY, sf::Color(games.back().turn * 255, games.back().turn * 255, games.back().turn * 255, 50));
     }
 }
 
 
 
 
-void MenuButton::setPosition(sf::Vector2f &pos) {
+void MenuButton::setPosition(sf::Vector2f pos) {
     position = pos;
 }
 
-void MenuButton::setFillColor(sf::Color &clr) {
+void MenuButton::setFillColor(sf::Color clr) {
+    fillColor = clr;
+}
+void MenuButton::setColor(sf::Color clr) {
     color = clr;
 }
 
@@ -219,8 +229,9 @@ void MenuButton::drawButton(sf::RenderWindow& window) {
         {size.x, size.y}
     );
     button.setPosition({position.x, position.y});
-    button.setFillColor(sf::Color(128, 128, 128));
+    button.setFillColor(fillColor);
     window.draw(button);
+    boundingBox = button.getGlobalBounds();
 
     sf::Font font;
     if (!font.openFromFile("fonts/zpix.ttf"))
@@ -230,10 +241,126 @@ void MenuButton::drawButton(sf::RenderWindow& window) {
 
     sf::Text text(font);
     text.setString(innerText);
-    text.setCharacterSize(24);
+    text.setCharacterSize(fontSize);
     sf::FloatRect textBoundingBox = text.getGlobalBounds();
-    text.setPosition({position.x + (size.x - textBoundingBox.size.x) / 2, position.y + (size.y - textBoundingBox.size.y) / 2});
+    text.setPosition({position.x + (size.x - textBoundingBox.size.x) / 2, position.y + (size.y - fontSize) / 2});
     text.setFillColor(color);
     text.setStyle(sf::Text::Regular);
     window.draw(text);
+}
+
+void MenuButton::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {   
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        setFillColor(sf::Color(108, 108, 108));
+    } else {
+        setFillColor(sf::Color(128, 128, 128));
+    }
+}
+
+void MenuButton::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+}
+
+void MenuButton::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        if (onClick != nullptr) onClick();
+    }
+}
+
+
+
+
+
+void TurnIndicator::setPosition(sf::Vector2f pos) {
+    position = pos;
+}
+
+void TurnIndicator::setFillColor(sf::Color clr) {
+    fillColor = clr;
+}
+void TurnIndicator::setColor(sf::Color clr) {
+    color = clr;
+}
+
+void TurnIndicator::drawIndicator(sf::RenderWindow& window) {
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y});
+    background.setFillColor(fillColor);
+    window.draw(background);
+    boundingBox = background.getGlobalBounds();
+
+    const float radius = 30.f;
+
+    sf::CircleShape stone(radius);
+    stone.setOrigin({radius, radius});
+    stone.setPosition({position.x + size.y / 2, position.y + size.y / 2});
+    stone.setFillColor(color);
+    window.draw(stone);
+
+
+    sf::Font font;
+    if (!font.openFromFile("fonts/zpix.ttf"))
+    {
+        // error...
+    }
+
+    sf::Text text(font);
+    text.setString(innerText);
+    text.setCharacterSize(fontSize);
+    sf::FloatRect textBoundingBox = text.getGlobalBounds();
+    text.setPosition({position.x + 100, position.y + (size.y - fontSize) / 2});
+    text.setFillColor(color);
+    text.setStyle(sf::Text::Regular);
+    window.draw(text);
+}
+
+
+
+
+
+void GameMenu::setPosition(sf::Vector2f pos) {
+    position = pos;
+
+    undoButton.setPosition({position.x + menuMargin, position.y + menuMargin});
+    redoButton.setPosition({position.x + (size.x + menuMargin) / 2, position.y + menuMargin});
+    passButton.setPosition({position.x + menuMargin, position.y + buttonHeight + 2 * menuMargin});
+    indicator.setPosition({position.x + menuMargin, position.y + size.y - buttonHeight - menuMargin});
+}
+
+void GameMenu::setFillColor(sf::Color clr) {
+    color = clr;
+}
+
+void GameMenu::drawMenu(sf::RenderWindow& window) {
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y});
+    background.setFillColor(color);
+    window.draw(background);
+
+    undoButton.drawButton(window);
+    redoButton.drawButton(window);
+    passButton.drawButton(window);
+    indicator.drawIndicator(window);
+}
+
+void GameMenu::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {   
+    undoButton.hoverHandler(mouseButtonEvent);
+    redoButton.hoverHandler(mouseButtonEvent);
+    passButton.hoverHandler(mouseButtonEvent);
+}
+
+void GameMenu::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {  
+    undoButton.pressedHandler(mouseButtonEvent);
+    redoButton.pressedHandler(mouseButtonEvent);
+    passButton.pressedHandler(mouseButtonEvent); 
+}
+
+void GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    undoButton.releasedHandler(mouseButtonEvent);
+    redoButton.releasedHandler(mouseButtonEvent);
+    passButton.releasedHandler(mouseButtonEvent);
+    
 }
