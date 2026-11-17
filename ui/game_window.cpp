@@ -19,6 +19,8 @@ void GameWindow::run() {
     gameMenu.setFillColor(sf::Color(220, 179, 92));
 
     while (window.isOpen()) {
+        AIMoveEvent();
+
         processEvents(window);
 
         window.clear(sf::Color(220, 179, 92));
@@ -290,13 +292,19 @@ void TurnIndicator::drawIndicator(sf::RenderWindow& window) {
     window.draw(background);
     boundingBox = background.getGlobalBounds();
 
-    const float radius = 30.f;
+    const float radius = 25.f;
 
     sf::CircleShape stone(radius);
     stone.setOrigin({radius, radius});
     stone.setPosition({position.x + size.y / 2, position.y + size.y / 2});
-    stone.setFillColor(color);
+    stone.setFillColor(sf::Color(games.back().turn * 255, games.back().turn * 255, games.back().turn * 255));
     window.draw(stone);
+
+    if (games.back().turn == 0) {
+        innerText = "Black turn";
+    } else {
+        innerText = "White turn";
+    }
 
 
     sf::Font font;

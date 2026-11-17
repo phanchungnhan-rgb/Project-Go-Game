@@ -26,6 +26,12 @@ extern int gamemode_flag;
 
 bool moveWithMCTSRandom(int x, int y);
 
+bool AIMoveEvent();
+
 bool stonePlaceEvent(int x, int y);
 
 void turnPassEvent();
+
+void undoEvent();
+
+void redoEvent();

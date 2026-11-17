@@ -115,6 +115,9 @@ struct MCTSBOT {
         root->current = games.back();
         root->last = *(games.end() - 2);
         root->resetChilds();
+        
+        root->w = 0, root->n = 0;
+        root->bonus = 0;
 
         return 1;
     }
@@ -169,14 +172,6 @@ struct MCTSBOT {
                         currentNode->w += score;
 
                         MoveNode * &curchild = currentNode->childs[idstack.top()]; idstack.pop();
-
-                        /* old code
-                        if (currentNode->current.turn == side) {
-                            curchild.first.first = (curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
-                        } else {
-                            curchild.first.first = -(curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
-                        }
-                        */
 
                         currentNode = currentNode->parent;
                     }

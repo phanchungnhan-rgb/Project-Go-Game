@@ -119,6 +119,8 @@ public:
         passButton.setPosition({position.x + menuMargin, position.y + buttonHeight + 2 * menuMargin});
         indicator.setPosition({position.x + menuMargin, position.y + size.y - 70.f - menuMargin});
         
+        undoButton.onClick = &undoEvent;
+        redoButton.onClick = &redoEvent;
         passButton.onClick = &turnPassEvent;
     }
      
