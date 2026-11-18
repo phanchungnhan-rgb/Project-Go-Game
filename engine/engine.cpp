@@ -1,198 +1,134 @@
 #include "engine.hpp"
 
-// Game current_game, last_game;
-std::deque<Game> games(2);
-std::vector<Game> redo_stack;
-
 bool INVALID_MOVE() {
     CONSOLE_LOG("INVALID MOVE\n");
     return false;
 }
 
-bool cmpGameArray(int8_t next[][BOARDSIZE + 2], int8_t previous[][BOARDSIZE + 2]) {
-    for (int i = 1; i < BOARDSIZE + 1; i++) {
-        for (int j = 1; j < BOARDSIZE + 1; j++) {
-            if (next[i][j] != previous[i][j]) {
-                return false;
+bool Game::isValidMove(go::Cord2i position, bool side) {
+    if (position.x < 1 || position.x > BOARDSIZE || position.y < 1 || position.y > BOARDSIZE) return false;
+    if (currentBoard[position.x][position.y] != 0) return false;
+    int theirsideminlib = 67;
+    int oursidetotallib = 0;
+    go::Cord2i sus = {0, 0};
+    for (int _ = 0; _ < 4; _++) {
+        go::Cord2i adj = {position.x + ADJCORD_X[_], position.y + ADJCORD_Y[_]};
+        if (currentBoard[adj.x][adj.y] == 127) continue;
+        go::Cord2i adjroot = root(adj);
+        if (currentBoard[adj.x][adj.y] != 0) {
+            if (currentBoard[adj.x][adj.y] == side + 1) {
+                oursidetotallib += rootLiberties[adjroot.x][adjroot.y].size() - 1;
+            } else {
+                theirsideminlib = std::min(
+                    theirsideminlib,
+                    rootLiberties[adjroot.x][adjroot.y].size()
+                );
+                if (
+                    rootLiberties[adjroot.x][adjroot.y].size() == 1 &&
+                    rootChilds[adjroot.x][adjroot.y].size() == 1 &&
+                    sus.x == 0 && sus.y == 0
+                ) {
+                    sus = adjroot;
+                } else if (rootLiberties[adjroot.x][adjroot.y].size() == 1) {
+                    sus = {-1, -1};
+                }
             }
+        } else {
+            oursidetotallib++;
         }
     }
+    if (theirsideminlib > 1 && oursidetotallib == 0) return false;
+    if (
+        sus.x > 0 && sus.y > 0 &&
+        previous_moves.back().placed.size() == 1 && previous_moves.back().removed.size() == 1 &&
+        previous_moves.back().placed.back() == sus && previous_moves.back().removed.back() == position
+    ) return false;
     return true;
 }
 
-int countLiberty(Game &game, int8_t xxx, int8_t yyy) {
-    std::queue<std::pair<int8_t, int8_t>> que;
-    que.push({xxx, yyy});
+bool Game::placeStone(go::Cord2i position, bool side) {
+    if (!isValidMove(position, side)) return INVALID_MOVE();
 
-    bool side = game.current[xxx][yyy] - 1;
+    future_moves.clear();
 
-    game.current[xxx][yyy] = 67;
+    currentBoard[position.x][position.y] = side + 1;
 
-    std::vector<std::pair<int8_t, int8_t>> cluster_stone, cluster_lib;
+    Move thismove(position, side);
+    thismove.placed.push_back(position);
 
-    int cnt = 0;
-
-    while (que.size()) {
-        int x = que.front().first;
-        int y = que.front().second;
-        que.pop();
-
-        cluster_stone.push_back({x, y});
-
-        for (int _ = 0; _ < 4; _++) {
-            int adjx = x + ADJCORD_X[_];
-            int adjy = y + ADJCORD_Y[_];
-
-            if (game.current[adjx][adjy] <= 0) {
-                cnt++;
-                game.current[adjx][adjy] = 69;
-                cluster_lib.push_back({adjx, adjy});
+    for (int _ = 0; _ < 4; _++) {
+        go::Cord2i adj = {position.x + ADJCORD_X[_], position.y + ADJCORD_Y[_]};
+        if (currentBoard[adj.x][adj.y] == 127) continue;
+        go::Cord2i adjroot = root(adj);
+        if (currentBoard[adj.x][adj.y] != 0) {
+            rootLiberties[adjroot.x][adjroot.y].erase(position);
+            if (currentBoard[adj.x][adj.y] != side + 1 && rootLiberties[adjroot.x][adjroot.y].size() == 0) {
+                removeDSU(adj, &(thismove.removed));
             }
-
-            if (game.current[adjx][adjy] == side + 1) {
-                que.push({adjx, adjy});
-                game.current[adjx][adjy] = 67;
-            }
+        } else {
+            rootLiberties[position.x][position.y].insert(adj);
         }
     }
-    for (std::pair<int8_t, int8_t> &point : cluster_stone) {
-        game.current[point.first][point.second] = side + 1;
-    }
-    for (std::pair<int8_t, int8_t> &point : cluster_lib) {
-        game.current[point.first][point.second] = 0;
-    }
-    return cnt;
-}
-
-// clearptr is the vector that will receive back the empty intersection
-bool checkAndClear(Game &newgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr) {
-    bool deleted = false;
-    std::vector<std::pair<int8_t, int8_t>> cluster_all;
-    for (int _ = 0; _ < 5; _++) {
-        int adjx; if (_ < 4) adjx = x + ADJCORD_X[_]; else adjx = x;
-        int adjy; if (_ < 4) adjy = y + ADJCORD_Y[_]; else adjy = y;
-
-        if (newgame.current[adjx][adjy] == side + 1) {
-            std::queue<std::pair<int8_t, int8_t>> que;
-            que.push({adjx, adjy});
-            newgame.current[adjx][adjy] = 67;
-
-            bool cleared = false;
-
-            std::vector<std::pair<int8_t, int8_t>> cluster;
-
-            while (que.size()) {
-                int x = que.front().first;
-                int y = que.front().second;
-                que.pop();
-
-                cluster.push_back({x, y});
-                cluster_all.push_back({x, y});
-
-                for (int _ = 0; _ < 4; _++) {
-                    int adjx = x + ADJCORD_X[_];
-                    int adjy = y + ADJCORD_Y[_];
-
-                    if (newgame.current[adjx][adjy] <= 0) {
-                        cleared = true;
-                    }
-
-                    if (newgame.current[adjx][adjy] == side + 1) {
-                        que.push({adjx, adjy});
-                        newgame.current[adjx][adjy] = 67;
-                    }
-                }
-            }
-
-            if (!cleared) {
-                cluster_all.resize(cluster_all.size() - cluster.size());
-                for (std::pair<int8_t, int8_t> &point : cluster) {
-                    newgame.current[point.first][point.second] = 0;
-                    if (clearptr != nullptr) {
-                        clearptr->push_back({point.first, point.second});
-                    }
-                }
-                if (newgame.turn == side) {
-                    newgame.taken[!side] += cluster.size();
-                }
-                deleted = true;
-            } /* else {
-                for (std::pair<int8_t, int8_t> &point : cluster) {
-                    newgame.current[point.first][point.second] = side + 1;
-                }
-            } */ // wrong code, this will make the game check a cluster multiple time
+    for (int _ = 0; _ < 4; _++) {
+        go::Cord2i adj = {position.x + ADJCORD_X[_], position.y + ADJCORD_Y[_]};
+        if (currentBoard[adj.x][adj.y] == 127) continue;
+        if (currentBoard[adj.x][adj.y] == side + 1) {
+            mergeDSU(position, adj);
         }
     }
     
-    for (std::pair<int8_t, int8_t> &point : cluster_all) {
-        if (newgame.current[point.first][point.second] == 67) {
-            newgame.current[point.first][point.second] = side + 1;
+    // record move
+    previous_moves.push_back(thismove);
+    if (previous_moves.size() > UNDOSTSZ) previous_moves.pop_front();
+
+    return true;
+}
+
+bool Game::passTurn(bool side) {
+    Move thismove({0, 0}, side);
+    
+    future_moves.clear();
+
+    // record move
+    previous_moves.push_back(thismove);
+    if (previous_moves.size() > UNDOSTSZ) previous_moves.pop_front();
+
+    return true;
+}
+
+bool Game::undoMove(int moves) {
+    while (moves-- && previous_moves.size() > 1) {
+        int side = previous_moves.back().owner;
+        for (go::Cord2i pos : previous_moves.back().placed) {
+            currentBoard[pos.x][pos.y] = 0;
         }
-    }
-
-    return deleted;
-}
-
-bool placeStone(int x, int y, bool side) {
-    if (games.back().current[x][y]) return INVALID_MOVE();
-
-
-    Game newgame;
-    newgame = games.back();
-    newgame.turn = !side;
-
-    newgame.current[x][y] = 1 + side;
-
-    checkAndClear(newgame, !side, x, y);
-
-    if (checkAndClear(newgame, side, x, y)) {
-        return INVALID_MOVE();
-    } else {
-        if (cmpGameArray(newgame.current, (games.end() - 2)->current)) {
-            return INVALID_MOVE();
+        for (go::Cord2i pos : previous_moves.back().removed) {
+            currentBoard[pos.x][pos.y] = (!side) + 1;
         }
-        
-        while (!redo_stack.empty()) redo_stack.pop_back();
-
-        games.push_back(newgame);
-        if (games.size() > UNDOSTSZ) games.pop_front();
-        return true;
+        future_moves.push_back(previous_moves.back());
+        previous_moves.pop_back();
     }
-    return INVALID_MOVE();
-}  
+    recalculateDSU();
+    return true;
+} 
 
-bool passTurn(bool side) {
-    Game newgame;
-    newgame = games.back();
-    newgame.turn = !side;
-
-    while (!redo_stack.empty()) redo_stack.pop_back();
-
-    games.push_back(newgame);
-    if (games.size() > UNDOSTSZ) games.pop_front();
+bool Game::redoMove(int moves) {
+    while (moves-- && !future_moves.empty()) {
+        int side = future_moves.back().owner;
+        for (go::Cord2i pos : future_moves.back().placed) {
+            currentBoard[pos.x][pos.y] = side + 1;
+        }
+        for (go::Cord2i pos : future_moves.back().removed) {
+            currentBoard[pos.x][pos.y] = 0;
+        }
+        previous_moves.push_back(future_moves.back());
+        future_moves.pop_back();
+    }
+    recalculateDSU();
     return true;
 }
 
-bool undoMove() {
-    if (games.size() <= 2) {
-        return INVALID_MOVE();
-    }
-    redo_stack.push_back(games.back());
-    games.pop_back();
-    return true;
-}
-
-bool redoMove() {
-    if (redo_stack.empty()) {
-        return INVALID_MOVE();
-    }
-    games.push_back(redo_stack.back());
-    redo_stack.pop_back();
-    if (games.size() > UNDOSTSZ) games.pop_front();
-    return true;
-}
-
-bool saveGame(char *file_name) {
+bool Game::save(char *file_name, int gamemode_flag = 0) {    
     char file_path[50] = "./saves/";
 
     strcat(file_path, file_name);
@@ -203,34 +139,19 @@ bool saveGame(char *file_name) {
         return 0;
     }
 
-    for (Game &game : games) {
-        fprintf(save_file, "%d\n", game.turn);
+    // gamemode flag
+    fprintf(save_file, "%d\n", gamemode_flag);
 
-        for (int i = 1; i < BOARDSIZE + 1; i++) {
-            for (int j = 1; j < BOARDSIZE + 1; j++) {
-                fprintf(save_file, "%d ", game.current[i][j]);
-            }
-            fprintf(save_file, "\n");
+    // player turn
+    fprintf(save_file, "%d\n", turn);
+
+    // board
+    for (int i = 1; i < BOARDSIZE + 1; i++) {
+        for (int j = 1; j < BOARDSIZE + 1; j++) {
+            fprintf(save_file, "%d ", currentBoard[i][j]);
         }
         fprintf(save_file, "\n");
     }
-
-    fprintf(save_file, "-44\n\n");
-
-    for (Game &game : redo_stack) {
-        fprintf(save_file, "%d\n", game.turn);
-
-        for (int i = 1; i < BOARDSIZE + 1; i++) {
-            for (int j = 1; j < BOARDSIZE + 1; j++) {
-                fprintf(save_file, "%d ", game.current[i][j]);
-            }
-            fprintf(save_file, "\n");
-        }
-        fprintf(save_file, "\n");
-    }
-    
-    fprintf(save_file, "-44\n\n");
-
     fclose(save_file);
 
     CONSOLE_LOG("SAVED\n");
@@ -238,10 +159,7 @@ bool saveGame(char *file_name) {
     return true;
 }
 
-
-
-
-bool loadGame(char *file_name) {
+bool Game::loadGame(char *file_name, int *gamemode_flag = nullptr) {
     char file_path[50] = "./saves/";
 
     strcat(file_path, file_name);
@@ -252,59 +170,28 @@ bool loadGame(char *file_name) {
         return 0;
     }
 
-    games.clear();
-    while (true) {
-        Game game;
-        int x;
-        fscanf(save_file, "%d", &x);
-        game.turn = x;
-        if (x == -44) break;
+    // gamemode flag
+    int gmf;
+    fscanf(save_file, "%d", &gmf);
+    if (gamemode_flag != nullptr) *gamemode_flag = gmf;
+    
+    // player turn
+    fscanf(save_file, "%d", &turn);
 
-        CONSOLE_LOG("this is %d\n", game.turn);
-
-        for (int i = 1; i < BOARDSIZE + 1; i++) {
-            for (int j = 1; j < BOARDSIZE + 1; j++) {
-                
-                fscanf(save_file, "%d ", &game.current[i][j]);
-            }
+    // board
+    for (int i = 1; i < BOARDSIZE + 1; i++) {
+        for (int j = 1; j < BOARDSIZE + 1; j++) {
+            fscanf(save_file, "%d ", &currentBoard[i][j]);
         }
-        games.push_back(game);
     }
-
-    redo_stack.clear();
-    while (true) {
-        Game game;
-        int x;
-        fscanf(save_file, "%d", &x);
-        game.turn = x;
-        if (x == -44) break;
-
-        for (int i = 1; i < BOARDSIZE + 1; i++) {
-            for (int j = 1; j < BOARDSIZE + 1; j++) {
-                
-                fscanf(save_file, "%d ", &game.current[i][j]);
-            }
-        }
-        redo_stack.push_back(game);
-    }
-
     fclose(save_file);
+
+    Move defaultMove({0, 0}, 1);
+    previous_moves.clear();
+    previous_moves.push_back(defaultMove);
+    recalculateDSU();
 
     CONSOLE_LOG("LOADED\n");
 
     return true;
-}
-
-
-void printGame(Game c) {
-    for (int i = 1; i < BOARDSIZE + 1; i++) {
-        for (int j = 1; j < BOARDSIZE + 1; j++) {
-            printf("%d ", c.current[i][j]);
-        }
-        printf("\n");
-    }
-}
-
-void printCurrentGame() {
-    printGame(games.back());
 }

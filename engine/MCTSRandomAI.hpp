@@ -30,23 +30,13 @@
 
 double normlizeScore(double score);
 
-double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr = nullptr, bool allow_eye_filling = 0, int lx = -1, int ly = -1);
-bool simulatePass(Game &game, Game &previousgame, bool side);
+double moveWithScore(Game &gameSession, go::Cord2i position, bool side);
 double roughScoring(Game &game);
+double simulateRandomPlay(Game &gameSession, std::mt19937 &rng, int extramoves = 0);
 
 struct MoveNode {
-    Game last;
-    Game current;
-
-    int x, y;
-
-    MoveNode(int xx = 0, int yy = 0) {
-        x = xx;
-        y = yy;
-    }
-
-    std::vector<MoveNode *> unexplored_childs;
-
+    Move movement;
+    
     // i was wrong, this will have to be recalculated every tree traversal
     std::vector<MoveNode *> childs; // (weight; x; y); child node
 
@@ -56,51 +46,63 @@ struct MoveNode {
 
     double bonus = 0;
 
+    MoveNode() : movement({0, 0}, 1) {
+
+    }
+
     static bool cmpBonus(MoveNode *a, MoveNode *b) {
         return a->bonus < b->bonus;
     }
 
     double calculateWeight(bool side = 1) {
-        if (parent->current.turn == side) return (w / n) + MCTSHEAT * sqrt(ln(parent->n)/n) + (MCTSBIAS * bonus / (n + 1));
+        if (movement.owner == side) return (w / n) + MCTSHEAT * sqrt(ln(parent->n)/n) + (MCTSBIAS * bonus / (n + 1)); 
         else return (-1 * (w / n)) + MCTSHEAT * sqrt(ln(parent->n)/n) + (MCTSBIAS * bonus / (n + 1));
     }
 
-    void resetChilds() {
-        unexplored_childs.clear();
+    // the movement at this node has to be done in order to call this
+    void expandNode(Game &gameSession, std::mt19937 &rng, double *win = nullptr) {
         childs.clear();
         for (int8_t i = 1; i <= BOARDSIZE; i++) {
             for (int8_t j = 1; j <= BOARDSIZE; j++) {
-                if (current.current[i][j] == 0) {
+                if (gameSession.currentBoard[i][j] == 0) {
                     bool is_valid_move = 0; // only place moves next to some stone and 
                     if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
                     for (int _ = 0; _ < 8; _++) {
                         int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
-                        if (current.current[x][y] == 1 || current.current[x][y] == 2) is_valid_move = 1;
+                        if (gameSession.currentBoard[x][y] == 1 || gameSession.currentBoard[x][y] == 2) is_valid_move = 1;
                     } 
                     if (!is_valid_move) continue; 
-                    unexplored_childs.push_back(new MoveNode(i, j));
-                    unexplored_childs.back()->last = last;
-                    unexplored_childs.back()->current = current;
-                    unexplored_childs.back()->parent = this;
-                    double move_score = SimulateMove(unexplored_childs.back()->current, unexplored_childs.back()->last, unexplored_childs.back()->current.turn, i, j, nullptr, false, x, y);
-                    if (std::isfinite(move_score)) {
-                        unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
-                        // unexplored_childs.back().first.first = move_score;
+                    childs.push_back(new MoveNode);
+                    childs.back()->parent = this;
+                    bonus = moveWithScore(gameSession, {i, j}, !movement.owner);
+                    
+                    if (std::isfinite(bonus)) {
+                        // do stuff to child here
+                        childs.back()->movement = gameSession.previous_moves.back();
+
+                        double simscore = simulateRandomPlay(gameSession, rng, 1);
+                        if (simscore < 0) childs.back()->w = 0;
+                        else childs.back()->w = 1, w++;
+
+                        childs.back()->n = 1;
+                        n++;
                     } else {
-                        delete unexplored_childs.back();
-                        unexplored_childs.pop_back();
+                        // child invalid, delete
+                        delete childs.back();
+                        childs.pop_back();
                     }
+
                 }
             }
         }
-        std::sort(unexplored_childs.begin(), unexplored_childs.end(), cmpBonus /*, std::greater<std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *>>()*/);
+        std::sort(childs.begin(), childs.end(), cmpBonus /*, std::greater<std::pair<std::pair<double, std::array<int8_t, 2>>, MoveNode *>>()*/);
     }
 };
 
-double simulateRandomPlay(MoveNode node);
-
 struct MCTSBOT {
-    MoveNode *root = new MoveNode(0, 0);
+    Game gameSession;
+
+    MoveNode *root = new MoveNode;
 
     int max_thinking_time;
 
@@ -112,9 +114,6 @@ struct MCTSBOT {
     }
 
     bool init() {
-        root->current = games.back();
-        root->last = *(games.end() - 2);
-        root->resetChilds();
         
         root->w = 0, root->n = 0;
         root->bonus = 0;
@@ -132,7 +131,7 @@ struct MCTSBOT {
 
             std::stack<int> idstack;
 
-            while (currentNode->unexplored_childs.empty() && !currentNode->childs.empty()) {
+            while (!currentNode->childs.empty()) {
                 int id = 0;
                 for (int i = 0; i < currentNode->childs.size(); i++) {
                     if (currentNode->childs[id]->calculateWeight(side) < currentNode->childs[i]->calculateWeight(side)) {

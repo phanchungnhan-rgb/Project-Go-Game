@@ -7,247 +7,177 @@ double normlizeScore(double score) {
     return tanh(score / 2);
 }
 
-// use for function SimulateMove() only, cuz all pieces of connected region are marked 67
-int eyesCounter(Game &game, std::vector<std::pair<int8_t, int8_t>> &group) {
-    bool deleted = false;
-    int cnt = 0;
-    std::vector<std::pair<int8_t, int8_t>> clearing;
-    for (std::pair<int8_t, int8_t> &point : group) {
-        for (int _ = 0; _ < 4; _++) {
-            int adjx = point.first + ADJCORD_X[_];
-            int adjy = point.second + ADJCORD_Y[_];
-
-            if (game.current[adjx][adjy] == 0) {
-                bool legit = 1;
-
-                std::queue<std::pair<int8_t, int8_t>> que;
-                que.push({adjx, adjy});
-                game.current[adjx][adjy] = 45;
-
-                while (que.size()) {
-                    int x = que.front().first;
-                    int y = que.front().second;
-                    que.pop();
-
-                    clearing.push_back({x, y});
-
-                    for (int _ = 0; _ < 4; _++) {
-                        int adjx = x + ADJCORD_X[_];
-                        int adjy = y + ADJCORD_Y[_];
-
-                        if (game.current[adjx][adjy] == 0) {
-                            que.push({adjx, adjy});
-                            game.current[adjx][adjy] = 45;
-                        } else if (game.current[adjx][adjy] != 67 && game.current[adjx][adjy] != 127) {
-                            legit = 0;
-                        }
-                    }
-                }
-                cnt += legit;
-            }
-        }
-    }
-    for (std::pair<int8_t, int8_t> &point : clearing) {
-        game.current[point.first][point.second] = 0;
-    }
-    return cnt;
-}
-
-const double reward_capture = 0.5;
+const double reward_capture = 0.3;
 const double reward_eyefill = -0.3;
 const double reward_selfatari = -0.2;
-const double reward_atari_esc = 0.4;
+const double reward_atari_esc = 0.3;
 const double reward_move_nextto_lastmove = 0.1;
 
 // simulate a move for AI, aside from rule breaking moves, moves that are suicidal are negative, while big capturing moves are large positive
-double SimulateMove(Game &game, Game &previousgame, bool side, int x, int y, std::vector<std::pair<int8_t, int8_t>> *clearptr, bool allow_eye_filling, int lx, int ly) {
-    if (game.current[x][y]) return INVALID_SIM;
+double moveWithScore(Game &gameSession, go::Cord2i position, bool side) {
+    if (!gameSession.isValidMove(position, side)) return INVALID_SIM; // I think I can just delete this for extra performance
 
     double score = 0;
 
-    if (abs(lx - x) < 2 || abs(ly - y) < 2) score += reward_move_nextto_lastmove; // reward move that are close to opponent last move
+    // reward move that are close to opponent last move
+    if (abs(gameSession.previous_moves.back().position.x - position.x) < 2 && abs(gameSession.previous_moves.back().position.y - position.y) < 2) score += reward_move_nextto_lastmove; 
 
-    Game newgame = game;
-    newgame.turn = !side;
+    double atari_count = 0;
 
-    int minilibcnt = 67;
     for (int _ = 0; _ < 4; _++) {
-        int adjx = x + ADJCORD_X[_];
-        int adjy = y + ADJCORD_Y[_];
-        if (game.current[adjx][adjy] == side + 1) minilibcnt = std::min(minilibcnt, countLiberty(newgame, adjx, adjy));
+        go::Cord2i adj = {position.x + ADJCORD_X[_], position.y + ADJCORD_Y[_]};
+        if (gameSession.currentBoard[adj.x][adj.y] == 127) continue;
+        go::Cord2i adjroot = gameSession.root(adj);
+
+        if (gameSession.currentBoard[adj.x][adj.y] == side + 1 && gameSession.rootLiberties[adjroot.x][adjroot.y].size() == 1) {
+            atari_count += gameSession.rootChilds[adjroot.x][adjroot.y].size();
+        }        
     }
 
-    newgame.current[x][y] = 1 + side;
+    if (!gameSession.placeStone(position, side)) return INVALID_SIM;
 
-    score += reward_capture * checkAndClear(newgame, !side, x, y, clearptr); // reward capturing
-
-    if (checkAndClear(newgame, side, x, y)) {
-        return INVALID_SIM;
+    go::Cord2i rootpos = gameSession.root(position);
+    if (gameSession.rootLiberties[rootpos.x][rootpos.y].size() <= 1) {
+        // punish for self atari
+        score += reward_selfatari * gameSession.rootChilds[rootpos.x][rootpos.y].size();
     } else {
-        if (cmpGameArray(newgame.current, previousgame.current)) {
-            return INVALID_SIM;
-        }
-
-        std::queue<std::pair<int8_t, int8_t>> que;
-        que.push({x, y});
-        newgame.current[x][y] = 67;
-
-        std::vector<std::pair<int8_t, int8_t>> cluster;
-
-        int holecnt = 0;
-
-        while (que.size()) {
-            int x = que.front().first;
-            int y = que.front().second;
-            que.pop();
-
-            cluster.push_back({x, y});
-
-            for (int _ = 0; _ < 4; _++) {
-                int adjx = x + ADJCORD_X[_];
-                int adjy = y + ADJCORD_Y[_];
-
-                if (newgame.current[adjx][adjy] == side + 1) {
-                    que.push({adjx, adjy});
-                    newgame.current[adjx][adjy] = 67;
-                }
-            }
-        }
-
-        if (!allow_eye_filling) holecnt = eyesCounter(newgame, cluster);
-
-        for (std::pair<int8_t, int8_t> &point : cluster) {
-            newgame.current[point.first][point.second] = side + 1;
-        }
-
-
-        if (holecnt == 1) {
-            bool eyefill = true;
-            for (int _ = 0; _ < 4; _++) {
-                int adjx = x + ADJCORD_X[_];
-                int adjy = y + ADJCORD_Y[_];
-
-                if (newgame.current[adjx][adjy] == 0 || newgame.current[adjx][adjy] == (!side) + 1) {
-                    eyefill = false;
-                } else {
-                }
-            }
-            score += eyefill * reward_eyefill; // disengourage eyefill
-        }
-
-        int grouplibcnt = countLiberty(newgame, x, y);
-
-        if (grouplibcnt == 1) {
-            score += reward_selfatari; // disencourage putting itself into atari
-        } else {
-            if (minilibcnt == 1 && grouplibcnt > 1) score += reward_atari_esc; // raward escaping from atari
-        }
-
-        previousgame = game;
-        game = newgame;
-        return normlizeScore(score);
+        // reward escaping atari
+        score += reward_atari_esc * atari_count;
     }
+
+    score += reward_capture * gameSession.previous_moves.back().removed.size(); // reward capturing
+
+    return normlizeScore(score);
     return INVALID_SIM;
 }
-bool simulatePass(Game &game, Game &previousgame, bool side) {
-    Game newgame;
-    newgame = game;
-    newgame.turn = !side;
 
-    previousgame = game;
-    game = newgame;
-    return 1;
-}
-
-
-// point for not black (0);
-double roughScoring(Game &game) {
+// point for white (1);
+double roughScoring(Game &gameSession) {
     double score = 0;
     for (int i = 1; i <= BOARDSIZE; i++) {
         for (int j = 1; j <= BOARDSIZE; j++) {
-            if (game.current[i][j] == 1) {
-                score += 1;
-            } else if (game.current[i][j] == 2) {
-                score -= 1;
-            } else if (game.current[i][j] == 0) {
-                int b = 0, w = 0;
-                for (int _ = 0; _ < 4; _++) {
-                    int adjx = i + ADJCORD_X[_];
-                    int adjy = j + ADJCORD_Y[_];
+            if (gameSession.currentBoard[i][j] == 1) score++;
+            else if (gameSession.currentBoard[i][j] == 2) score--;
+            if (gameSession.currentBoard[i][j] != 0) continue;
 
-                    if (game.current[adjx][adjy] == 0 || game.current[adjx][adjy] == 127) continue;
-                    if (game.current[adjx][adjy] == 1) b++;
-                    else if (game.current[adjx][adjy] == 2) w++;
+            bool neigh[2] = {};
+            int count = 0;
+
+            std::stack<go::Cord2i> stk;
+            stk.push({i, j});
+            gameSession.currentBoard[i][j] = 3;
+
+            while (!stk.empty()) {
+                go::Cord2i currentPosition = stk.top(); stk.pop();
+
+                count++;
+
+                for (int _ = 0; _ < 4; _++) {
+                    go::Cord2i adj = {currentPosition.x + ADJCORD_X[_], currentPosition.y + ADJCORD_Y[_]};
+                    if (gameSession.currentBoard[adj.x][adj.y] > 2) continue;
+
+                    if (gameSession.currentBoard[adj.x][adj.y] == 0) {
+                        gameSession.currentBoard[adj.x][adj.y] = 3;
+                        stk.push(adj);
+                    } else {
+                        neigh[gameSession.currentBoard[adj.x][adj.y] - 1] = 1;
+                    }
                 }
-                if (b > 0 && w == 0) score += 1;
-                else if (b == 0 && w > 0) score -= 1;
             }
+            if (neigh[0] && !neigh[1]) {
+                score += count;
+            } else if (!neigh[0] && neigh[1]) {
+                score -= count;
+            }
+        }
+    }
+    for (int i = 1; i <= BOARDSIZE; i++) {
+        for (int j = 1; j <= BOARDSIZE; j++) {
+            if (gameSession.currentBoard[i][j] == 3) gameSession.currentBoard[i][j] = 0;
         }
     }
     return -score;
 }
 
-double simulateRandomPlay(MoveNode node) {
-    bool passedlasttime = 0;
+double simulateRandomPlay(Game &gameSession, std::mt19937 &rng, int extramoves) {
+    double score = 0;
     
-    std::deque<std::pair<int8_t, int8_t>> moves;
+    std::deque<go::Cord2i> moves[2];
     for (int i = 1; i <= BOARDSIZE; i++) {
         for (int j = 1; j <= BOARDSIZE; j++) {
-            bool is_valid_move = 0; // only place moves next to some stone and 
-            if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
-            for (int _ = 0; _ < 8; _++) {
-                int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
-                if (node.current.current[x][y] == 1 || node.current.current[x][y] == 2) is_valid_move = 1;
-            } 
-            if (!is_valid_move) continue; 
-            if (node.current.current[i][j] == 0) moves.push_back({i, j});
+            if (gameSession.currentBoard[i][j] != 0) continue;
+            // bool is_valid_move = 0; // only place moves next to some stone and 
+            // if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
+            // for (int _ = 0; _ < 8; _++) {
+            //     int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
+            //     if (gameSession.currentBoard[x][y] == 1 || gameSession.currentBoard[x][y] == 2) is_valid_move = 1;
+            // } 
+            // if (!is_valid_move) continue; 
+            moves[0].push_back({i, j}); 
+            moves[1].push_back({i, j});
         }
     }
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    shuffle(moves.begin(), moves.end(), std::default_random_engine(seed));
+    shuffle(moves[0].begin(), moves[0].end(), rng);
+    shuffle(moves[1].begin(), moves[1].end(), rng);
 
-    std::vector<std::pair<int8_t, int8_t>> newintersections;
+    bool passed = false;;
+    bool moved;
     
     // tune the maximum for plies
-    for (int plies = 0; plies < 0.08 * BOARDSIZE * BOARDSIZE; plies++) {
-        bool moved = false;
-        int i;
-        for (i = 0; i < moves.size(); i++) {
-            newintersections.clear();
-            if (std::isfinite(SimulateMove(node.current, node.last, node.current.turn, moves.front().first, moves.front().second, &newintersections))) {
-                moved = 1;
-                for (std::pair<int8_t, int8_t> &intersection : newintersections) {
-                    bool is_valid_move = 0; // only place moves next to some stone and 
-                    if ((intersection.first % 5 == 0) && (intersection.second % 5 == 0)) is_valid_move = 1;
-                    for (int _ = 0; _ < 8; _++) {
-                        int x = intersection.first + PROCORD_X[_], y = intersection.second + PROCORD_Y[_];
-                        if (node.current.current[x][y] == 1 || node.current.current[x][y] == 2) is_valid_move = 1;
-                    } 
-                    if (!is_valid_move) continue; 
-                    moves.push_back(intersection);
-                }
-                moves.pop_front();
-                break;
+    int moveMade = 0;
+    int plies;
+    for (plies = 0; plies < 0.08 * BOARDSIZE * BOARDSIZE; plies++) {
+        moved = false;
+        int owner = !gameSession.previous_moves.back().owner;
+        int cyclecnt = 0;
+        while (moves[owner].size()) {
+            if (cyclecnt >= moves[owner].size()) break;
+            int nxtcnt = 0;
+            for (int _ = 0; _ < 8; _++) {
+                int x = moves[owner].front().x + PROCORD_X[_], y = moves[owner].front().y + PROCORD_Y[_];
+                if (gameSession.currentBoard[x][y] == 127) continue;
+                if (gameSession.currentBoard[x][y] != owner + 1) nxtcnt++; 
+            } 
+            if (nxtcnt < 2) {
+                moves[owner].push_back(moves[owner].front());
+                moves[owner].pop_front();
+                cyclecnt++;
+                continue;
             }
-            moves.push_back(moves.front());
-            moves.pop_front();
+            if (std::isfinite(moveWithScore(gameSession, moves[owner].front(), owner))) {
+                // if can move
+                moves[owner].pop_front();
+                shuffle(gameSession.previous_moves.back().removed.begin(), gameSession.previous_moves.back().removed.end(), rng);
+                for (go::Cord2i pos : gameSession.previous_moves.back().removed) {
+                    moves[owner].push_back(pos);
+                    moves[!owner].push_back(pos);
+                } 
+                moved = true;
+                moveMade++;
+                cyclecnt = 0;
+                break;
+            } else {
+                // if cant move
+                moves[owner].push_back(moves[owner].front());
+                moves[owner].pop_front();
+                cyclecnt++;
+                continue;
+            }
         }
 
         if (!moved) {
-            if (!passedlasttime) {
-                passedlasttime = 1;
-                simulatePass(node.current, node.last, node.current.turn);
-                continue;
-            }
-
-            // printGame(node.current); // delete this pls
-        
-
-            return roughScoring(node.current);
+            if (passed) break;
+            gameSession.passTurn(owner);
+            moveMade++;
+            passed = true;
         } else {
-            passedlasttime = 0;
+            passed = false;
         }
     }
 
-    return roughScoring(node.current);
+    score += roughScoring(gameSession);
+
+    gameSession.undoMove(moveMade);
+
+    return score;
 }
