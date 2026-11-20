@@ -47,7 +47,7 @@ bool Game::isValidMove(go::Cord2i position, bool side) {
 }
 
 bool Game::placeStone(go::Cord2i position, bool side) {
-    if (!isValidMove(position, side)) return INVALID_MOVE();
+    if (!isValidMove(position, side)) return false;
 
     future_moves.clear();
 
@@ -128,7 +128,7 @@ bool Game::redoMove(int moves) {
     return true;
 }
 
-bool Game::save(char *file_name, int gamemode_flag = 0) {    
+bool Game::save(char *file_name, int gamemode_flag) {    
     char file_path[50] = "./saves/";
 
     strcat(file_path, file_name);
@@ -159,7 +159,7 @@ bool Game::save(char *file_name, int gamemode_flag = 0) {
     return true;
 }
 
-bool Game::loadGame(char *file_name, int *gamemode_flag = nullptr) {
+bool Game::loadGame(char *file_name, int *gamemode_flag) {
     char file_path[50] = "./saves/";
 
     strcat(file_path, file_name);
@@ -195,3 +195,5 @@ bool Game::loadGame(char *file_name, int *gamemode_flag = nullptr) {
 
     return true;
 }
+
+Game mainGame;

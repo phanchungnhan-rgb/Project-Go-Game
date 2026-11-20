@@ -23,7 +23,7 @@
 
 #define ln(x) log(x)
 #define MCTSHEAT sqrt(2)
-#define MCTSBIAS 361
+#define MCTSBIAS 67
 
 #define INVALID_SIM std::nan("1")
 
@@ -62,6 +62,8 @@ struct MoveNode {
     // the movement at this node has to be done in order to call this
     void expandNode(Game &gameSession, std::mt19937 &rng, double *win = nullptr) {
         childs.clear();
+        if (win != nullptr) (*win) = 0;
+
         for (int8_t i = 1; i <= BOARDSIZE; i++) {
             for (int8_t j = 1; j <= BOARDSIZE; j++) {
                 if (gameSession.currentBoard[i][j] == 0) {
@@ -69,20 +71,24 @@ struct MoveNode {
                     if ((i % 5 == 0) && (j % 5 == 0)) is_valid_move = 1;
                     for (int _ = 0; _ < 8; _++) {
                         int x = i + PROCORD_X[_], y = j + PROCORD_Y[_];
-                        if (gameSession.currentBoard[x][y] == 1 || gameSession.currentBoard[x][y] == 2) is_valid_move = 1;
+                        if ((int) gameSession.currentBoard[x][y] == 1 || (int) gameSession.currentBoard[x][y] == 2) is_valid_move = 1;
                     } 
                     if (!is_valid_move) continue; 
                     childs.push_back(new MoveNode);
                     childs.back()->parent = this;
-                    bonus = moveWithScore(gameSession, {i, j}, !movement.owner);
+                    childs.back()->bonus = moveWithScore(gameSession, {i, j}, !movement.owner);
                     
-                    if (std::isfinite(bonus)) {
+                    if (std::isfinite(childs.back()->bonus)) {
+
                         // do stuff to child here
                         childs.back()->movement = gameSession.previous_moves.back();
 
                         double simscore = simulateRandomPlay(gameSession, rng, 1);
                         if (simscore < 0) childs.back()->w = 0;
-                        else childs.back()->w = 1, w++;
+                        else {
+                            childs.back()->w = 1;
+                            w++; (*win)++;
+                        }
 
                         childs.back()->n = 1;
                         n++;
@@ -91,7 +97,6 @@ struct MoveNode {
                         delete childs.back();
                         childs.pop_back();
                     }
-
                 }
             }
         }
@@ -104,6 +109,9 @@ struct MCTSBOT {
 
     MoveNode *root = new MoveNode;
 
+    unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937 rng{seed};
+
     int max_thinking_time;
 
     bool side;
@@ -114,6 +122,10 @@ struct MCTSBOT {
     }
 
     bool init() {
+        gameSession = mainGame;
+
+        root = new MoveNode;
+        root->movement = gameSession.previous_moves.back();
         
         root->w = 0, root->n = 0;
         root->bonus = 0;
@@ -121,15 +133,15 @@ struct MCTSBOT {
         return 1;
     }
 
-    std::pair<int, int> ourTurn() {
+    go::Cord2i ourTurn() {
         auto time_begin = std::chrono::steady_clock::now();
 
         int simcnt = 0; // performance testing
         while (true) {
-            simcnt++;
             MoveNode *currentNode = root;
 
             std::stack<int> idstack;
+            int depth = 0;
 
             while (!currentNode->childs.empty()) {
                 int id = 0;
@@ -139,77 +151,26 @@ struct MCTSBOT {
                     }
                 }
                 currentNode = currentNode->childs[id];
+                gameSession.placeStone(currentNode->movement.position, currentNode->movement.owner);
+                depth++;
                 idstack.push(id);
             }
 
-            MoveNode *achild;
+            double wincnt, deltasim;
+            currentNode->expandNode(gameSession, rng, &wincnt);
+            deltasim = currentNode->childs.size();
+            simcnt += deltasim;
 
-            bool can_move = 0;
+            while (currentNode->parent != nullptr) {
+                currentNode->parent->n += deltasim;
+                currentNode->parent->w += wincnt;
 
-            while (!currentNode->unexplored_childs.empty()) {
-                achild = currentNode->unexplored_childs.back(); currentNode->unexplored_childs.pop_back();
-
-                if (true) {
-                    achild->resetChilds();
-
-                    // currentNode->childs.insert(achild);
-
-                    double score = simulateRandomPlay(*(achild));
-
-                    score = normlizeScore(score);
-
-                    achild->w = score;
-                    achild->n = 1;
-
-                    bool isleaf = 1;
-
-                    idstack.push(currentNode->childs.size());
-                    currentNode->childs.push_back(achild);
-                    
-                    while (currentNode != nullptr) {
-                        currentNode->n += 1;
-                        currentNode->w += score;
-
-                        MoveNode * &curchild = currentNode->childs[idstack.top()]; idstack.pop();
-
-                        currentNode = currentNode->parent;
-                    }
-
-                    can_move = 1;
-
-                    break;
-                } else {
-                    delete achild;
-                }
-            }
-
-            if (!can_move) {
-                double score = simulateRandomPlay(*currentNode);
-
-                score = normlizeScore(score);
-
-                currentNode->w += score;
-                currentNode->n += 1;
+                idstack.pop();
 
                 currentNode = currentNode->parent;
-                
-                while (currentNode != nullptr) {
-                    currentNode->n += 1;
-                    currentNode->w += score;
-
-                    MoveNode * &curchild = currentNode->childs[idstack.top()]; idstack.pop();
-
-                    /* old code
-                    if (currentNode->current.turn == side) {
-                        curchild.first.first = (curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
-                    } else {
-                        curchild.first.first = -(curchild.second->w / curchild.second->n) + MCTSHEAT * sqrt(ln(currentNode->n)/curchild.second->n) + (MCTSBIAS * curchild.second->bonus / (curchild.second->n + 1)); // calc
-                    }
-                    */
-
-                    currentNode = currentNode->parent;
-                }
             }
+
+            gameSession.undoMove(depth);
 
             auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time_begin).count();
 
@@ -229,49 +190,76 @@ struct MCTSBOT {
 
         // placeStone(candidate_child->x, candidate_child->y, side); // move in engine
         root = candidate_child; // move in AI
+        gameSession.placeStone(root->movement.position, root->movement.owner); // move in AI's gameSession
         root->parent = nullptr;
-        CONSOLE_LOG("CANDIDATE MOVE : %d %d\n", candidate_child->x, candidate_child->y);
+        CONSOLE_LOG("CANDIDATE MOVE : %d %d\n", candidate_child->movement.position.x, candidate_child->movement.position.y);
 
-        return {candidate_child->x, candidate_child->y};
+        return candidate_child->movement.position;
     }
     void opponentMove(int8_t x, int8_t y) {
         bool moved = false;
-        for (MoveNode * achild : root->unexplored_childs) {
-            if (achild->x == x && achild->y == y) {
-                achild->resetChilds();
-                root = achild;
-                root->parent = nullptr;
-                moved = 1;
-            }
-        }
-        if (moved) return;
         for (MoveNode * achild : root->childs) {
-            if (achild->x == x && achild->y == y) {
+            if (achild->movement.position.x == x && achild->movement.position.y == y) {
                 root = achild;
+                gameSession.placeStone(root->movement.position, root->movement.owner); // move in AI's gameSession
                 root->parent = nullptr;
                 moved = 1;
             }
         }
         if (moved) return;
 
-        root->unexplored_childs.push_back(new MoveNode(x, y));
-        root->unexplored_childs.back()->last = root->last;
-        root->unexplored_childs.back()->current = root->current;
-        root->unexplored_childs.back()->parent = root;
-        double move_score = 0;
-        if (x > 0 && y > 0) move_score = SimulateMove(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn, x, y, nullptr, false, root->x, root->y);
-        else simulatePass(root->unexplored_childs.back()->current, root->unexplored_childs.back()->last, root->unexplored_childs.back()->current.turn);
-        if (std::isfinite(move_score)) {
-            root->unexplored_childs.back()->bonus = move_score; // must normalize the score in SimulateMove first
-            // unexplored_childs.back().first.first = move_score;
+        root->childs.push_back(new MoveNode);
+        root->childs.back()->parent = root;
+        root->childs.back()->bonus = moveWithScore(gameSession, {x, y}, !root->movement.owner);
+        
+        if (std::isfinite(root->childs.back()->bonus)) {
+            // do stuff to child here
+            root->childs.back()->movement = gameSession.previous_moves.back();
+
+            // because win rate is not needed for root node
+            // double simscore = simulateRandomPlay(gameSession, rng, 1);
+            // if (simscore < 0) childs.back()->w = 0;
+            // else {
+            //     childs.back()->w = 1;
+            //     w++; win++;
+            // }
+
+            root = root->childs.back();
+            root->parent = nullptr;
+            moved = 1;
         } else {
-            delete root->unexplored_childs.back();
-            root->unexplored_childs.pop_back();
+            // child invalid, delete
+            gameSession.undoMove(1);
+            delete root->childs.back();
+            root->childs.pop_back();
         }
-         
-        root->unexplored_childs.back()->resetChilds();
-        root = root->unexplored_childs.back();
-        root->parent = nullptr;
-        moved = 1;
+    }
+    void opponentPass() {
+        root->childs.push_back(new MoveNode);
+        root->childs.back()->parent = root;
+        // root->childs.back()->bonus = moveWithScore(gameSession, {x, y}, !root->movement.owner);
+        gameSession.passTurn(!side);
+        root->childs.back()->bonus = 0;
+
+        if (std::isfinite(root->childs.back()->bonus)) {
+            // do stuff to child here
+            root->childs.back()->movement = gameSession.previous_moves.back();
+
+            // because win rate is not needed for root node
+            // double simscore = simulateRandomPlay(gameSession, rng, 1);
+            // if (simscore < 0) childs.back()->w = 0;
+            // else {
+            //     childs.back()->w = 1;
+            //     w++; win++;
+            // }
+
+            root = root->childs.back();
+            root->parent = nullptr;
+        } else {
+            // child invalid, delete
+            gameSession.undoMove(1);
+            delete root->childs.back();
+            root->childs.pop_back();
+        }
     }
 };

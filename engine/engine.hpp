@@ -234,3 +234,5 @@ struct Game {
 };
 
 bool INVALID_MOVE();
+
+extern Game mainGame;

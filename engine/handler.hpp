@@ -24,6 +24,8 @@ extern int gamemode_flag;
 // 0 : play with human
 // 1 : play with MCTS Random
 
+void switchGamemodeEvent(int index);
+
 bool moveWithMCTSRandom(int x, int y);
 
 bool AIMoveEvent();

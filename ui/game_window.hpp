@@ -37,32 +37,91 @@ private:
     void drawBoard(sf::RenderWindow& window);
 };
 
-class MenuButton {
+class Button {
 public:
-    static constexpr float fontSize = 24;
+    float fontSize = 24;
     sf::Vector2f position;
     sf::Color fillColor = sf::Color(128, 128, 128);
+    sf::Color hoverFillColor = sf::Color(108, 108, 108);
     sf::Color color = sf::Color(255, 255, 255);
     sf::Vector2f size;
     std::string innerText = "";
 
     sf::FloatRect boundingBox;
 
-    MenuButton(sf::Vector2f sz, std::string str) {
+    bool hovered = false;
+
+    Button(sf::Vector2f sz, std::string str) {
         size = sz;
         innerText = str;
     }
 
-    void (*onClick)();
+    void (*onClick)() = nullptr;
      
     void setPosition(sf::Vector2f pos);
     void setFillColor(sf::Color clr);
+    void setHoverFillColor(sf::Color clr);
     void setColor(sf::Color clr);
+    void setFontSize(float sz);
     void drawButton(sf::RenderWindow& window);
 
-    void hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
-    void pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
-    void releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
+class DropdownSelector {
+public:
+    float fontSize = 24;
+    sf::Vector2f position;
+    sf::Color fillColor = sf::Color(128, 128, 128);
+    sf::Color hoverFillColor = sf::Color(108, 108, 108);
+    sf::Color color = sf::Color(255, 255, 255);
+    sf::Vector2f size;
+    std::string innerText = "";
+
+    sf::FloatRect boundingBox;
+
+    bool droped = false;
+    int selected = -1;
+
+    Button activeSelection;
+    std::vector<Button *> selectionList;
+
+    DropdownSelector(sf::Vector2f sz, std::string str) :
+    activeSelection(sz, str) {
+        size = sz;
+        innerText = str;
+
+        activeSelection.fontSize = fontSize;
+        activeSelection.position = position;
+        activeSelection.fillColor = fillColor;
+        activeSelection.hoverFillColor = hoverFillColor;
+        activeSelection.color = color;
+    }
+
+    void (*onSelect)(int index) = nullptr;
+
+    void addSelection(std::string str);
+    void addSelectionList(std::vector<std::string> vtrstr);
+     
+    void setPosition(sf::Vector2f pos);
+    void setFillColor(sf::Color clr);
+    void setHoverFillColor(sf::Color clr);
+    void setColor(sf::Color clr);
+    void setFontSize(float sz);
+    void drawDropdownSelector(sf::RenderWindow& window);
+
+    void switchSelection(int index) {
+        selected = index;
+        activeSelection.innerText = selectionList[index]->innerText;
+        if (onSelect != nullptr) onSelect(index);
+    }
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 private:
 };
 
@@ -101,8 +160,8 @@ public:
     sf::Vector2f size;
     std::string innerText = "";
 
-    MenuButton undoButton; MenuButton redoButton;
-    MenuButton passButton;
+    Button undoButton; Button redoButton;
+    Button passButton;
 
     TurnIndicator indicator;
 
@@ -128,8 +187,8 @@ public:
     void setFillColor(sf::Color clr);
     void drawMenu(sf::RenderWindow& window);
 
-    void hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
-    void pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
-    void releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 private:
 };

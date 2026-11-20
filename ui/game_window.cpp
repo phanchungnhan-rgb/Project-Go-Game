@@ -5,6 +5,7 @@
 int render_mode = 0;
 
 GameMenu gameMenu({380, 800 - 40}, "sample");
+DropdownSelector gamemodeSelector({380 - 40 * 2, 40}, "Select gamemode");
 
 void GameWindow::run() {
     sf::RenderWindow window(
@@ -18,6 +19,11 @@ void GameWindow::run() {
     gameMenu.setPosition({800, boardMargin / 2});
     gameMenu.setFillColor(sf::Color(220, 179, 92));
 
+    gamemodeSelector.setPosition({800 + 40, 400});
+    gamemodeSelector.addSelection("gamemode 0");
+    gamemodeSelector.addSelection("gamemode 1");
+    gamemodeSelector.onSelect = &switchGamemodeEvent;
+
     while (window.isOpen()) {
         AIMoveEvent();
 
@@ -28,6 +34,7 @@ void GameWindow::run() {
         drawBoard(window);
         
         gameMenu.drawMenu(window);
+        gamemodeSelector.drawDropdownSelector(window);
         window.display();
     }
 }
@@ -71,6 +78,8 @@ bool GameWindow::pixelToBoardPosition(
     return true;
 }
 
+// this look very bad, gotta change somehow
+bool isSomethingHovered;
 void GameWindow::MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     std::cout << "new mouse x: " << mouseButtonEvent->position.x << std::endl;
     std::cout << "new mouse y: " << mouseButtonEvent->position.y << std::endl;
@@ -81,13 +90,16 @@ void GameWindow::MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent) 
         stoneHoverY = 0;
     }
 
+    isSomethingHovered = false;
 
     gameMenu.hoverHandler(mouseButtonEvent);
+    gamemodeSelector.hoverHandler(mouseButtonEvent);
 }
 
 void GameWindow::MouseButtonPressedEventHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
 
     gameMenu.pressedHandler(mouseButtonEvent);
+    gamemodeSelector.pressedHandler(mouseButtonEvent);
 }
 
 void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
@@ -104,6 +116,7 @@ void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased 
     }
 
     gameMenu.releasedHandler(mouseButtonEvent);
+    gamemodeSelector.releasedHandler(mouseButtonEvent);
 }
 
 void GameWindow::processEvents(sf::RenderWindow& window) {
@@ -122,11 +135,6 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
                 CONSOLE_LOG("simulating\n");
 
                 auto beg = std::chrono::steady_clock::now();
-
-                MoveNode newnode(0, 0);
-                newnode.last = *(games.end() - 2);
-                newnode.current = games.back();
-                CONSOLE_LOG("random play score: %lf\n", simulateRandomPlay(newnode));
 
                 auto en = std::chrono::steady_clock::now();
 
@@ -198,9 +206,9 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
             const float pixelX = boardMargin + (i - 1) * spacing;
             const float pixelY = boardMargin + (j - 1) * spacing;
 
-            if (games.back().current[i][j] == 1) {
+            if (mainGame.currentBoard[i][j] == 1) {
                 drawStone(window, i, j, sf::Color::Black);
-            } else if (games.back().current[i][j] == 2) {
+            } else if (mainGame.currentBoard[i][j] == 2) {
                 drawStone(window, i, j, sf::Color::White);
             }
         }
@@ -208,30 +216,37 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
 
     // draw the hover
     if (stoneHoverX != 0 && stoneHoverY != 0) {
-        drawStone(window, stoneHoverX, stoneHoverY, sf::Color(games.back().turn * 255, games.back().turn * 255, games.back().turn * 255, 50));
+        bool color = !mainGame.previous_moves.back().owner;
+        drawStone(window, stoneHoverX, stoneHoverY, sf::Color(color * 255, color * 255, color * 255, 50));
     }
 }
 
 
 
 
-void MenuButton::setPosition(sf::Vector2f pos) {
+void Button::setPosition(sf::Vector2f pos) {
     position = pos;
 }
 
-void MenuButton::setFillColor(sf::Color clr) {
+void Button::setFillColor(sf::Color clr) {
     fillColor = clr;
 }
-void MenuButton::setColor(sf::Color clr) {
+void Button::setHoverFillColor(sf::Color clr) {
+    hoverFillColor = clr;
+}
+void Button::setColor(sf::Color clr) {
     color = clr;
 }
+void Button::setFontSize(float sz) {
+    fontSize = sz;
+}
 
-void MenuButton::drawButton(sf::RenderWindow& window) {
+void Button::drawButton(sf::RenderWindow& window) {
     sf::RectangleShape button(
         {size.x, size.y}
     );
     button.setPosition({position.x, position.y});
-    button.setFillColor(fillColor);
+    if (hovered) button.setFillColor(hoverFillColor); else button.setFillColor(fillColor);
     window.draw(button);
     boundingBox = button.getGlobalBounds();
 
@@ -251,21 +266,102 @@ void MenuButton::drawButton(sf::RenderWindow& window) {
     window.draw(text);
 }
 
-void MenuButton::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {   
-    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
-        setFillColor(sf::Color(108, 108, 108));
+bool Button::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        CONSOLE_LOG("HOVING ");
+        hovered = true;
+        isSomethingHovered = true;
     } else {
-        setFillColor(sf::Color(128, 128, 128));
+        hovered = false;
     }
+    return false;
 }
 
-void MenuButton::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+bool Button::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+    return false;
 }
 
-void MenuButton::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+bool Button::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
         if (onClick != nullptr) onClick();
+        return true;
     }
+    return false;
+}
+
+
+void DropdownSelector::addSelection(std::string str) {
+    Button *selection = new Button(size, str);
+    selectionList.push_back(selection); 
+
+    selection->fontSize = fontSize;
+    selection->position = {position.x, position.y + selectionList.size() * size.y};
+    selection->fillColor = fillColor;
+    selection->hoverFillColor = hoverFillColor;
+    selection->color = color;
+    selection->size = size;
+}
+void DropdownSelector::addSelectionList(std::vector<std::string> vtrstr) {
+
+}
+
+void DropdownSelector::setPosition(sf::Vector2f pos) {
+    position = pos;
+    activeSelection.position = position;
+    for (Button * selection : selectionList) {
+        selection->position = {position.x, position.y + selectionList.size() * size.y};
+    }
+}
+
+void DropdownSelector::setFillColor(sf::Color clr) {
+    fillColor = clr;
+}
+void DropdownSelector::setHoverFillColor(sf::Color clr) {
+    hoverFillColor = clr;
+}
+void DropdownSelector::setColor(sf::Color clr) {
+    color = clr;
+}
+void DropdownSelector::setFontSize(float sz) {
+    fontSize = sz;
+}
+
+void DropdownSelector::drawDropdownSelector(sf::RenderWindow& window) {
+    activeSelection.drawButton(window);
+    if (droped) for (Button * selection : selectionList) {
+        selection->drawButton(window);
+    }
+}
+
+bool DropdownSelector::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
+    if (activeSelection.hoverHandler(mouseButtonEvent)) {
+    }
+    if (droped) for (Button *selection : selectionList) {
+        if (selection->hoverHandler(mouseButtonEvent)) {
+        }
+    }
+    return false;
+}
+
+bool DropdownSelector::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+    return false;
+}
+
+bool DropdownSelector::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (activeSelection.releasedHandler(mouseButtonEvent)) {
+        CONSOLE_LOG("I CLIKEDDDD");
+        droped = !droped;
+        return true;
+    }
+    if (droped) for (int i = 0; i < selectionList.size(); i++) {
+        if (selectionList[i]->releasedHandler(mouseButtonEvent)) {
+            switchSelection(i);
+            droped = false;
+            return true;
+        }
+    }
+    droped = false;
+    return false;
 }
 
 
@@ -275,7 +371,6 @@ void MenuButton::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEven
 void TurnIndicator::setPosition(sf::Vector2f pos) {
     position = pos;
 }
-
 void TurnIndicator::setFillColor(sf::Color clr) {
     fillColor = clr;
 }
@@ -297,10 +392,11 @@ void TurnIndicator::drawIndicator(sf::RenderWindow& window) {
     sf::CircleShape stone(radius);
     stone.setOrigin({radius, radius});
     stone.setPosition({position.x + size.y / 2, position.y + size.y / 2});
-    stone.setFillColor(sf::Color(games.back().turn * 255, games.back().turn * 255, games.back().turn * 255));
+    bool side = !mainGame.previous_moves.back().owner;
+    stone.setFillColor(sf::Color(side * 255, side * 255, side * 255, 50));
     window.draw(stone);
 
-    if (games.back().turn == 0) {
+    if (mainGame.previous_moves.back().owner == 1) {
         innerText = "Black turn";
     } else {
         innerText = "White turn";
@@ -354,21 +450,38 @@ void GameMenu::drawMenu(sf::RenderWindow& window) {
     indicator.drawIndicator(window);
 }
 
-void GameMenu::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {   
-    undoButton.hoverHandler(mouseButtonEvent);
-    redoButton.hoverHandler(mouseButtonEvent);
-    passButton.hoverHandler(mouseButtonEvent);
+bool GameMenu::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
+    if (undoButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (redoButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (passButton.hoverHandler(mouseButtonEvent)) {
+    }
+    return false;
 }
 
-void GameMenu::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {  
-    undoButton.pressedHandler(mouseButtonEvent);
-    redoButton.pressedHandler(mouseButtonEvent);
-    passButton.pressedHandler(mouseButtonEvent); 
+bool GameMenu::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {  
+    if (undoButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (redoButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (passButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    return false;
 }
 
-void GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
-    undoButton.releasedHandler(mouseButtonEvent);
-    redoButton.releasedHandler(mouseButtonEvent);
-    passButton.releasedHandler(mouseButtonEvent);
-    
+bool GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (undoButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (redoButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (passButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    return false;
 }

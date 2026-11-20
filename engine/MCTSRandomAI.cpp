@@ -8,9 +8,9 @@ double normlizeScore(double score) {
 }
 
 const double reward_capture = 0.3;
-const double reward_eyefill = -0.3;
+const double reward_eyefill = -999;
 const double reward_selfatari = -0.2;
-const double reward_atari_esc = 0.3;
+const double reward_atari_esc = 0.4;
 const double reward_move_nextto_lastmove = 0.1;
 
 // simulate a move for AI, aside from rule breaking moves, moves that are suicidal are negative, while big capturing moves are large positive
@@ -22,16 +22,31 @@ double moveWithScore(Game &gameSession, go::Cord2i position, bool side) {
     // reward move that are close to opponent last move
     if (abs(gameSession.previous_moves.back().position.x - position.x) < 2 && abs(gameSession.previous_moves.back().position.y - position.y) < 2) score += reward_move_nextto_lastmove; 
 
-    double atari_count = 0;
+    int atari_count = 0;
 
+    
+    int enemynear = 0;
+    int bordercnt = 0;
     for (int _ = 0; _ < 4; _++) {
         go::Cord2i adj = {position.x + ADJCORD_X[_], position.y + ADJCORD_Y[_]};
-        if (gameSession.currentBoard[adj.x][adj.y] == 127) continue;
+        if (gameSession.currentBoard[adj.x][adj.y] == 127) {
+            bordercnt++; 
+            continue;
+        }
+        if (gameSession.currentBoard[adj.x][adj.y] == side + 1) bordercnt++;
+
         go::Cord2i adjroot = gameSession.root(adj);
 
         if (gameSession.currentBoard[adj.x][adj.y] == side + 1 && gameSession.rootLiberties[adjroot.x][adjroot.y].size() == 1) {
             atari_count += gameSession.rootChilds[adjroot.x][adjroot.y].size();
         }        
+    }
+    for (int _ = 0; _ < 8; _++) {
+        int x = position.x + PROCORD_X[_], y = position.y + PROCORD_Y[_];
+        if (gameSession.currentBoard[x][y] == (!side) + 1) enemynear++; 
+    } 
+    if (enemynear < 2 && bordercnt == 4) {
+        score += reward_eyefill;
     }
 
     if (!gameSession.placeStone(position, side)) return INVALID_SIM;
@@ -40,7 +55,8 @@ double moveWithScore(Game &gameSession, go::Cord2i position, bool side) {
     if (gameSession.rootLiberties[rootpos.x][rootpos.y].size() <= 1) {
         // punish for self atari
         score += reward_selfatari * gameSession.rootChilds[rootpos.x][rootpos.y].size();
-    } else {
+    } 
+    if (gameSession.rootLiberties[rootpos.x][rootpos.y].size() > 1 && atari_count > 0) {
         // reward escaping atari
         score += reward_atari_esc * atari_count;
     }
@@ -126,19 +142,23 @@ double simulateRandomPlay(Game &gameSession, std::mt19937 &rng, int extramoves) 
     // tune the maximum for plies
     int moveMade = 0;
     int plies;
-    for (plies = 0; plies < 0.08 * BOARDSIZE * BOARDSIZE; plies++) {
+    for (plies = 0; plies < 0.5 * BOARDSIZE * BOARDSIZE; plies++) {
         moved = false;
         int owner = !gameSession.previous_moves.back().owner;
         int cyclecnt = 0;
         while (moves[owner].size()) {
             if (cyclecnt >= moves[owner].size()) break;
-            int nxtcnt = 0;
+            int enemynear = 0;
+            int bordercnt = 0;
+            for (int _ = 0; _ < 4; _++) {
+                int x = moves[owner].front().x + ADJCORD_X[_], y = moves[owner].front().y + ADJCORD_Y[_];
+                if (gameSession.currentBoard[x][y] == 127 || gameSession.currentBoard[x][y] == owner + 1) {bordercnt++; continue;}
+            } 
             for (int _ = 0; _ < 8; _++) {
                 int x = moves[owner].front().x + PROCORD_X[_], y = moves[owner].front().y + PROCORD_Y[_];
-                if (gameSession.currentBoard[x][y] == 127) continue;
-                if (gameSession.currentBoard[x][y] != owner + 1) nxtcnt++; 
+                if (gameSession.currentBoard[x][y] == (!owner) + 1) enemynear++; 
             } 
-            if (nxtcnt < 2) {
+            if (enemynear < 2 && bordercnt == 4) {
                 moves[owner].push_back(moves[owner].front());
                 moves[owner].pop_front();
                 cyclecnt++;
@@ -177,7 +197,7 @@ double simulateRandomPlay(Game &gameSession, std::mt19937 &rng, int extramoves) 
 
     score += roughScoring(gameSession);
 
-    gameSession.undoMove(moveMade);
+    gameSession.undoMove(moveMade + extramoves);
 
     return score;
 }
