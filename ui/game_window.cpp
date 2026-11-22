@@ -4,8 +4,11 @@
 // 1 = show AI simulation (Debug)
 int render_mode = 0;
 
+Input *activeInput = nullptr;
+
+PopupWindowLayer popuplayer;
+
 GameMenu gameMenu({380, 800 - 40}, "sample");
-DropdownSelector gamemodeSelector({380 - 40 * 2, 40}, "Select gamemode");
 
 void GameWindow::run() {
     sf::RenderWindow window(
@@ -19,11 +22,6 @@ void GameWindow::run() {
     gameMenu.setPosition({800, boardMargin / 2});
     gameMenu.setFillColor(sf::Color(220, 179, 92));
 
-    gamemodeSelector.setPosition({800 + 40, 400});
-    gamemodeSelector.addSelection("gamemode 0");
-    gamemodeSelector.addSelection("gamemode 1");
-    gamemodeSelector.onSelect = &switchGamemodeEvent;
-
     while (window.isOpen()) {
         AIMoveEvent();
 
@@ -34,7 +32,7 @@ void GameWindow::run() {
         drawBoard(window);
         
         gameMenu.drawMenu(window);
-        gamemodeSelector.drawDropdownSelector(window);
+        popuplayer.drawPopupWindows(window);
         window.display();
     }
 }
@@ -79,31 +77,33 @@ bool GameWindow::pixelToBoardPosition(
 }
 
 // this look very bad, gotta change somehow
-bool isSomethingHovered;
+bool isSomethingHovered; // only check for this if the condition is not a hoverHandler
 void GameWindow::MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     std::cout << "new mouse x: " << mouseButtonEvent->position.x << std::endl;
     std::cout << "new mouse y: " << mouseButtonEvent->position.y << std::endl;
 
-    if (pixelToBoardPosition(mouseButtonEvent->position, stoneHoverX, stoneHoverY)) {
+    isSomethingHovered = false;
+
+    if (popuplayer.hoverHandler(mouseButtonEvent)) return;
+
+    if ((!isSomethingHovered) && pixelToBoardPosition(mouseButtonEvent->position, stoneHoverX, stoneHoverY)) {
     } else {
         stoneHoverX = 0;
         stoneHoverY = 0;
     }
 
-    isSomethingHovered = false;
-
     gameMenu.hoverHandler(mouseButtonEvent);
-    gamemodeSelector.hoverHandler(mouseButtonEvent);
 }
 
 void GameWindow::MouseButtonPressedEventHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
-
     gameMenu.pressedHandler(mouseButtonEvent);
-    gamemodeSelector.pressedHandler(mouseButtonEvent);
 }
 
 void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     if (mouseButtonEvent->button == sf::Mouse::Button::Left) {
+        if (popuplayer.releasedHandler(mouseButtonEvent)) return;
+        if (gameMenu.releasedHandler(mouseButtonEvent)) return;
+
         int boardX = 0, boardY = 0;
 
         if (pixelToBoardPosition(mouseButtonEvent->position, boardX, boardY)) {
@@ -114,9 +114,6 @@ void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased 
         }
         CONSOLE_LOG("clicked %d and %d\n", boardX, boardY);
     }
-
-    gameMenu.releasedHandler(mouseButtonEvent);
-    gamemodeSelector.releasedHandler(mouseButtonEvent);
 }
 
 void GameWindow::processEvents(sf::RenderWindow& window) {
@@ -126,37 +123,30 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
         }
 
 
-        if (auto* KeyDownEvent = event->getIf<sf::Event::KeyPressed>()) {
-            if (KeyDownEvent->scancode == sf::Keyboard::Scancode::A) {
-                render_mode = 1;
-                continue;
+        if(auto* textEnteredEvent = event->getIf<sf::Event::TextEntered>()){
+            CONSOLE_LOG("TYPED %s and active %d", std::to_string(textEnteredEvent->unicode), (int) (activeInput != nullptr));
+            if (activeInput != nullptr) {
+                char32_t unicode = textEnteredEvent->unicode;
+                if (unicode != 8) {
+                    if (('a' <= unicode && unicode <= 'z') ||
+                        ('A' <= unicode && unicode <= 'Z') || 
+                        ('0' <= unicode && unicode <= '9') ||
+                        (unicode == '_' || unicode == '-')
+                    ) activeInput->innerText.push_back(char(textEnteredEvent->unicode));
+                } else {
+                    if (!activeInput->innerText.empty()) activeInput->innerText.pop_back();
+                } 
             }
-            if (KeyDownEvent->scancode == sf::Keyboard::Scancode::D) { // for testing only
-                CONSOLE_LOG("simulating\n");
-
-                auto beg = std::chrono::steady_clock::now();
-
-                auto en = std::chrono::steady_clock::now();
-
-                CONSOLE_LOG("time simulated %d\n", std::chrono::duration_cast<std::chrono::milliseconds>(en - beg).count());
-
-                continue;
-            }
-            continue;
-        }
-        if (auto* KeyUpEvent = event->getIf<sf::Event::KeyReleased>()) {
-            if (KeyUpEvent->scancode == sf::Keyboard::Scancode::A) {
-                render_mode = 0;
-            }
-            continue;
         }
         
         if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseMoved>()) {
             MouseMoveEventHandler(mouseButtonEvent);
         }
         if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
+            MouseButtonPressedEventHandler(mouseButtonEvent);
         }
         if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonReleased>()) {
+            activeInput = nullptr;
             MouseButtonReleasedEventHandler(mouseButtonEvent);
         }
     }
@@ -250,13 +240,7 @@ void Button::drawButton(sf::RenderWindow& window) {
     window.draw(button);
     boundingBox = button.getGlobalBounds();
 
-    sf::Font font;
-    if (!font.openFromFile("fonts/zpix.ttf"))
-    {
-        // error...
-    }
-
-    sf::Text text(font);
+    sf::Text text(font.zpix);
     text.setString(innerText);
     text.setCharacterSize(fontSize);
     sf::FloatRect textBoundingBox = text.getGlobalBounds();
@@ -290,6 +274,68 @@ bool Button::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
 }
 
 
+
+
+void Input::setPosition(sf::Vector2f pos) {
+    position = pos;
+}
+
+void Input::setFillColor(sf::Color clr) {
+    fillColor = clr;
+}
+void Input::setHoverFillColor(sf::Color clr) {
+    hoverFillColor = clr;
+}
+void Input::setColor(sf::Color clr) {
+    color = clr;
+}
+void Input::setFontSize(float sz) {
+    fontSize = sz;
+}
+
+void Input::drawInput(sf::RenderWindow& window) {
+    sf::RectangleShape button(
+        {size.x, size.y}
+    );
+    button.setPosition({position.x, position.y});
+    if (hovered || activeInput == this) button.setFillColor(hoverFillColor); else button.setFillColor(fillColor);
+    window.draw(button);
+    boundingBox = button.getGlobalBounds();
+
+    sf::Text text(font.zpix);
+    if (blickCycleState++ % (blinkCycle * 2) < blinkCycle && this == activeInput) text.setString(innerText + "_"); else text.setString(innerText);
+    text.setCharacterSize(fontSize);
+    text.setPosition({position.x + (size.y - fontSize), position.y + (size.y - fontSize) / 2});
+    text.setFillColor(color);
+    text.setStyle(sf::Text::Regular);
+    window.draw(text);
+}
+
+bool Input::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        CONSOLE_LOG("HOVING ");
+        hovered = true;
+        isSomethingHovered = true;
+    } else {
+        hovered = false;
+    }
+    return false;
+}
+
+bool Input::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+    return false;
+}
+
+bool Input::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        activeInput = this;
+        if (onClick != nullptr) onClick();
+        return true;
+    }
+    return false;
+}
+
+
 void DropdownSelector::addSelection(std::string str) {
     Button *selection = new Button(size, str);
     selectionList.push_back(selection); 
@@ -308,8 +354,9 @@ void DropdownSelector::addSelectionList(std::vector<std::string> vtrstr) {
 void DropdownSelector::setPosition(sf::Vector2f pos) {
     position = pos;
     activeSelection.position = position;
-    for (Button * selection : selectionList) {
-        selection->position = {position.x, position.y + selectionList.size() * size.y};
+    for (int i = 0; i < selectionList.size(); i++) {
+        Button * selection = selectionList[i];
+        selection->position = {position.x, position.y + (i + 1) * size.y};
     }
 }
 
@@ -329,6 +376,7 @@ void DropdownSelector::setFontSize(float sz) {
 void DropdownSelector::drawDropdownSelector(sf::RenderWindow& window) {
     activeSelection.drawButton(window);
     if (droped) for (Button * selection : selectionList) {
+        CONSOLE_LOG("pos : %d %d", selection->position.x, selection->position.y);
         selection->drawButton(window);
     }
 }
@@ -363,9 +411,6 @@ bool DropdownSelector::releasedHandler(sf::Event::MouseButtonReleased *mouseButt
     droped = false;
     return false;
 }
-
-
-
 
 
 void TurnIndicator::setPosition(sf::Vector2f pos) {
@@ -403,13 +448,7 @@ void TurnIndicator::drawIndicator(sf::RenderWindow& window) {
     }
 
 
-    sf::Font font;
-    if (!font.openFromFile("fonts/zpix.ttf"))
-    {
-        // error...
-    }
-
-    sf::Text text(font);
+    sf::Text text(font.zpix);
     text.setString(innerText);
     text.setCharacterSize(fontSize);
     sf::FloatRect textBoundingBox = text.getGlobalBounds();
@@ -429,6 +468,12 @@ void GameMenu::setPosition(sf::Vector2f pos) {
     undoButton.setPosition({position.x + menuMargin, position.y + menuMargin});
     redoButton.setPosition({position.x + (size.x + menuMargin) / 2, position.y + menuMargin});
     passButton.setPosition({position.x + menuMargin, position.y + buttonHeight + 2 * menuMargin});
+
+    gamemodeSelector.setPosition({position.x + menuMargin, 220});
+    
+    saveButton.setPosition({position.x + menuMargin, 310});
+    loadButton.setPosition({position.x + (size.x + menuMargin) / 2, 310});
+
     indicator.setPosition({position.x + menuMargin, position.y + size.y - buttonHeight - menuMargin});
 }
 
@@ -447,6 +492,12 @@ void GameMenu::drawMenu(sf::RenderWindow& window) {
     undoButton.drawButton(window);
     redoButton.drawButton(window);
     passButton.drawButton(window);
+    
+    saveButton.drawButton(window);
+    loadButton.drawButton(window);
+
+    gamemodeSelector.drawDropdownSelector(window);
+
     indicator.drawIndicator(window);
 }
 
@@ -456,6 +507,12 @@ bool GameMenu::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     if (redoButton.hoverHandler(mouseButtonEvent)) {
     }
     if (passButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (gamemodeSelector.hoverHandler(mouseButtonEvent)) {
+    }
+    if (saveButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (loadButton.hoverHandler(mouseButtonEvent)) {
     }
     return false;
 }
@@ -470,6 +527,15 @@ bool GameMenu::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
     if (passButton.pressedHandler(mouseButtonEvent)) {
         return true;
     }
+    if (gamemodeSelector.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (saveButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (loadButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
     return false;
 }
 
@@ -481,6 +547,124 @@ bool GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent)
         return true;
     }
     if (passButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (gamemodeSelector.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (saveButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (loadButton.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    return false;
+}
+
+
+
+
+void SavePopupWindow::drawWindow(sf::RenderWindow& window) {
+    if (!visible) return;
+
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y}); boundingBox = background.getGlobalBounds();
+    background.setFillColor(sf::Color(180, 180, 180));
+    window.draw(background);
+
+    sf::RectangleShape titlebarBackground(
+        {size.x, titlebarHeight}
+    );
+    titlebarBackground.setPosition({position.x, position.y});
+    titlebarBackground.setFillColor(sf::Color(0, 0, 180));
+    window.draw(titlebarBackground);
+
+    sf::Text title(font.zpix);
+    title.setString(titleString);
+    title.setFillColor(inverseColor);
+    title.setCharacterSize(titlebarHeight - borderWidth * 3);
+    title.setPosition({position.x + borderWidth * 2, position.y + borderWidth});
+    window.draw(title);
+
+    closeButton.drawButton(window);
+
+    textinput.drawInput(window);
+
+    sf::RectangleShape border(
+        {size.x, size.y}
+    );
+    border.setPosition({position.x, position.y});
+    border.setOutlineColor(sf::Color(120, 120, 120));
+    border.setOutlineThickness(-borderWidth);
+    border.setFillColor(sf::Color(0, 0, 0, 0));
+    window.draw(border);
+}
+
+bool SavePopupWindow::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (textinput.hoverHandler(mouseButtonEvent)) {
+    }
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        isSomethingHovered = true;
+    }
+    return false;
+}
+bool SavePopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (textinput.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    }
+    return false;
+}
+bool SavePopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.releasedHandler(mouseButtonEvent)) {
+        visible = false;
+        return true;
+    }
+    if (textinput.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    } else {
+        visible = false;
+        return true;
+    }
+    return false;
+}
+
+
+
+
+
+void PopupWindowLayer::drawPopupWindows(sf::RenderWindow& window) {
+    savepopup.drawWindow(window);
+}
+
+bool PopupWindowLayer::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
+    if (savepopup.hoverHandler(mouseButtonEvent)) {
+    }
+    return false;
+}
+bool PopupWindowLayer::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+    if (savepopup.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    return false;
+}
+bool PopupWindowLayer::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (savepopup.releasedHandler(mouseButtonEvent)) {
         return true;
     }
     return false;

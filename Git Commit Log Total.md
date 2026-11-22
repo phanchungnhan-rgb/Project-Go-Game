@@ -1,6 +1,30 @@
 TAB1540 - 26125005 - Thai Bao Anh
 phanchungnhan-rgb - 26125055 - Phan Chung Nhan
 
+commit fd2c94fb84ec4440aa88c3d39dc1eaa8223a6976
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Fri Nov 20 22:10:11 2026 +0700
+
+    game engine done, UI partially implemented, AI's performance is acceptable
+
+commit fa7b7ab9109c28909555ec763a271ffa3657d342
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Wed Nov 18 22:13:33 2026 +0700
+
+    Engine maybe done, MCTS still fixing, do not git push
+
+commit 86acd6a4c04908ee3a1efda8e5132c37b1d3813d
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Tue Nov 17 18:05:37 2026 +0700
+
+    some UI element are complete, redesigning engine
+
+commit 0bb57e630d3b83e55100137740c87de462c55391
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Mon Nov 16 08:26:45 2026 +0700
+
+    new implementation for the UI, now UI only interact over handler
+
 commit 6739c9e6be42da0ada9c2ae5f7336cb841bf8adc
 Author: TAB1540 <thaibaoanh93@gmail.com>
 Date:   Fri Nov 13 23:30:57 2026 +0700

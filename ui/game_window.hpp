@@ -4,6 +4,8 @@
 #include "engine/MCTSRandomAI.hpp"
 #include "engine/handler.hpp"
 
+#include "ui/assets.hpp"
+
 #include <cmath>
 
 #include <SFML/Graphics.hpp>
@@ -70,6 +72,45 @@ public:
     bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 private:
 };
+
+class Input {
+public:
+    float fontSize = 24;
+    sf::Vector2f position;
+    sf::Color fillColor = sf::Color(128, 128, 128);
+    sf::Color hoverFillColor = sf::Color(108, 108, 108);
+    sf::Color color = sf::Color(255, 255, 255);
+    sf::Vector2f size;
+    std::string innerText = "";
+
+    int blinkCycle = 10;
+    int blickCycleState = 0;
+
+    sf::FloatRect boundingBox;
+
+    bool hovered = false;
+
+    Input(sf::Vector2f sz, std::string str) {
+        size = sz;
+        innerText = str;
+    }
+
+    void (*onClick)() = nullptr;
+     
+    void setPosition(sf::Vector2f pos);
+    void setFillColor(sf::Color clr);
+    void setHoverFillColor(sf::Color clr);
+    void setColor(sf::Color clr);
+    void setFontSize(float sz);
+    void drawInput(sf::RenderWindow& window);
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
+
 
 class DropdownSelector {
 public:
@@ -160,8 +201,12 @@ public:
     sf::Vector2f size;
     std::string innerText = "";
 
-    Button undoButton; Button redoButton;
+    Button undoButton, redoButton;
     Button passButton;
+
+    DropdownSelector gamemodeSelector;
+
+    Button saveButton, loadButton;
 
     TurnIndicator indicator;
 
@@ -169,6 +214,9 @@ public:
     undoButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "UNDO"), 
     redoButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "REDO"),
     passButton({sz.x - 2 * menuMargin, buttonHeight}, "PASS"),
+    gamemodeSelector({380 - 40 * 2, 40}, "Select gamemode"),
+    saveButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "SAVE"), 
+    loadButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "LOAD"),
     indicator({sz.x - 2 * menuMargin, 70.f}, "BLACK TURN") {
         size = sz;
         innerText = str;
@@ -176,6 +224,15 @@ public:
         undoButton.setPosition({position.x + menuMargin, position.y + menuMargin});
         redoButton.setPosition({position.x + (size.x + menuMargin) / 2, position.y + menuMargin});
         passButton.setPosition({position.x + menuMargin, position.y + buttonHeight + 2 * menuMargin});
+
+        gamemodeSelector.addSelection("gamemode 0");
+        gamemodeSelector.addSelection("gamemode 1");
+        gamemodeSelector.addSelection("gamemode 2");
+        gamemodeSelector.onSelect = &switchGamemodeEvent;
+
+        saveButton.setPosition({position.x + menuMargin, 300});
+        loadButton.setPosition({position.x + (size.x + menuMargin) / 2, 300});
+
         indicator.setPosition({position.x + menuMargin, position.y + size.y - 70.f - menuMargin});
         
         undoButton.onClick = &undoEvent;
@@ -192,3 +249,60 @@ public:
     bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 private:
 };
+
+
+// windows part
+
+class SavePopupWindow {
+public:
+    std::string titleString = "Save";
+    float titlebarHeight = 40;
+    float borderWidth = 5;
+    sf::Vector2f position = {200, 200};
+    sf::Color color = sf::Color(0, 0, 0);
+    sf::Color inverseColor = sf::Color(255, 255, 255);
+    sf::Vector2f size = {400, 300};
+
+    Button closeButton;
+
+    sf::FloatRect boundingBox;
+
+    Input textinput;
+
+    bool visible = true;
+
+    SavePopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), textinput({100, 30}, "hocphi") {
+        closeButton.setFillColor(sf::Color(255, 0, 0));
+        closeButton.setHoverFillColor(sf::Color(180, 0, 0));
+        closeButton.setColor(sf::Color(255, 255, 255));
+        closeButton.setPosition({float(position.x + size.x - titlebarHeight - borderWidth), float(position.y)});
+        closeButton.setFontSize(closeButton.size.x - borderWidth * 2);
+
+        textinput.setFillColor(sf::Color(0, 0, 255));
+        textinput.setHoverFillColor(sf::Color(0, 0, 200));
+        textinput.setColor(sf::Color(255, 255, 255));
+        textinput.setPosition({float(position.x + 50), float(position.y + 100)});
+        textinput.setFontSize(20);
+    }
+    
+    void drawWindow(sf::RenderWindow& window);
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
+class PopupWindowLayer {
+public:
+    SavePopupWindow savepopup;
+    
+    void drawPopupWindows(sf::RenderWindow& window);
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
+extern Input *activeInput;

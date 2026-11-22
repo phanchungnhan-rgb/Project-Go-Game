@@ -36,6 +36,8 @@ target_sources(NoGoNoLife
     controller/main.cpp
     ui/game_window.hpp
     ui/game_window.cpp
+    ui/assets.hpp
+    ui/assets.cpp
 )
 
 target_link_libraries(NoGoNoLife
