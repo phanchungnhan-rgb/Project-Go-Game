@@ -34,6 +34,8 @@ target_sources(NoGoNoLife
   PRIVATE
     controller/main.hpp
     controller/main.cpp
+    controller/systemutil.hpp
+    controller/systemutil.cpp
     ui/game_window.hpp
     ui/game_window.cpp
     ui/assets.hpp

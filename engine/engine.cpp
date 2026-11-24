@@ -128,7 +128,7 @@ bool Game::redoMove(int moves) {
     return true;
 }
 
-bool Game::save(char *file_name, int gamemode_flag) {    
+bool Game::saveGame(char *file_name, int gamemode_flag) {    
     char file_path[50] = "./saves/";
 
     strcat(file_path, file_name);
@@ -136,14 +136,14 @@ bool Game::save(char *file_name, int gamemode_flag) {
 
     if (save_file == NULL) {
         CONSOLE_LOG("open file to save failed\n");
-        return 0;
+        return false;
     }
 
     // gamemode flag
     fprintf(save_file, "%d\n", gamemode_flag);
 
-    // player turn
-    fprintf(save_file, "%d\n", turn);
+    // player that move last
+    fprintf(save_file, "%d\n", previous_moves.back().owner);
 
     // board
     for (int i = 1; i < BOARDSIZE + 1; i++) {
@@ -167,7 +167,7 @@ bool Game::loadGame(char *file_name, int *gamemode_flag) {
 
     if (save_file == NULL) {
         CONSOLE_LOG("open file to load failed\n");
-        return 0;
+        return false;
     }
 
     // gamemode flag
@@ -186,9 +186,10 @@ bool Game::loadGame(char *file_name, int *gamemode_flag) {
     }
     fclose(save_file);
 
-    Move defaultMove({0, 0}, 1);
+    Move defaultMove({0, 0}, turn);
     previous_moves.clear();
     previous_moves.push_back(defaultMove);
+    future_moves.clear();
     recalculateDSU();
 
     CONSOLE_LOG("LOADED\n");

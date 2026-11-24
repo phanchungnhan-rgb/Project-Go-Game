@@ -6,6 +6,8 @@ int render_mode = 0;
 
 Input *activeInput = nullptr;
 
+NotificationQueue notifications;
+
 PopupWindowLayer popuplayer;
 
 GameMenu gameMenu({380, 800 - 40}, "sample");
@@ -33,6 +35,8 @@ void GameWindow::run() {
         
         gameMenu.drawMenu(window);
         popuplayer.drawPopupWindows(window);
+        notifications.drawNotifications(window);
+
         window.display();
     }
 }
@@ -126,16 +130,7 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
         if(auto* textEnteredEvent = event->getIf<sf::Event::TextEntered>()){
             CONSOLE_LOG("TYPED %s and active %d", std::to_string(textEnteredEvent->unicode), (int) (activeInput != nullptr));
             if (activeInput != nullptr) {
-                char32_t unicode = textEnteredEvent->unicode;
-                if (unicode != 8) {
-                    if (('a' <= unicode && unicode <= 'z') ||
-                        ('A' <= unicode && unicode <= 'Z') || 
-                        ('0' <= unicode && unicode <= '9') ||
-                        (unicode == '_' || unicode == '-')
-                    ) activeInput->innerText.push_back(char(textEnteredEvent->unicode));
-                } else {
-                    if (!activeInput->innerText.empty()) activeInput->innerText.pop_back();
-                } 
+                activeInput->characterInput(textEnteredEvent->unicode);
             }
         }
         
@@ -211,6 +206,34 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
     }
 }
 
+
+void NotificationQueue::requestNotification(std::string notification) {
+    queue.push_front({notification, std::chrono::steady_clock::now()});
+}
+
+void NotificationQueue::drawNotifications(sf::RenderWindow& window) {
+    auto currentTimeStamp = std::chrono::steady_clock::now();
+    while ((!queue.empty()) && std::chrono::duration_cast<std::chrono::milliseconds>(currentTimeStamp - queue.back().second).count() > timeout) {
+        queue.pop_back();
+    }
+    for (int i = 0; i < queue.size(); i++) {
+        sf::RectangleShape notificationBackground(
+            {size.x, size.y}
+        );
+        notificationBackground.setPosition({position.x, position.y + i * (size.y + margin)});
+        notificationBackground.setFillColor(fillColor);
+        window.draw(notificationBackground);
+
+        sf::Text text(font.zpix);
+        text.setString(queue[i].first);
+        text.setCharacterSize(fontSize);
+        sf::FloatRect textBoundingBox = text.getGlobalBounds();
+        text.setPosition({position.x + margin, position.y + i * (size.y + margin) + (size.y - fontSize) / 2});
+        text.setFillColor(color);
+        text.setStyle(sf::Text::Regular);
+        window.draw(text);
+    }
+}
 
 
 
@@ -309,6 +332,25 @@ void Input::drawInput(sf::RenderWindow& window) {
     text.setFillColor(color);
     text.setStyle(sf::Text::Regular);
     window.draw(text);
+}
+
+bool Input::characterInput(char32_t unicode) {
+    if (unicode != 8) {
+        if (('a' <= unicode && unicode <= 'z') ||
+            ('A' <= unicode && unicode <= 'Z') || 
+            ('0' <= unicode && unicode <= '9') ||
+            (unicode == '_' || unicode == '-')
+        ) {
+            activeInput->innerText.push_back(char(unicode));
+            return true;
+        }
+    } else {
+        if (!activeInput->innerText.empty()) {
+            activeInput->innerText.pop_back();
+            return true;
+        }
+    } 
+    return false;
 }
 
 bool Input::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
@@ -553,6 +595,7 @@ bool GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent)
         return true;
     }
     if (saveButton.releasedHandler(mouseButtonEvent)) {
+        popuplayer.savepopup.turnVisible();
         return true;
     }
     if (loadButton.releasedHandler(mouseButtonEvent)) {
@@ -590,7 +633,9 @@ void SavePopupWindow::drawWindow(sf::RenderWindow& window) {
 
     closeButton.drawButton(window);
 
-    textinput.drawInput(window);
+    textInput.drawInput(window);
+
+    saveButton.drawButton(window);
 
     sf::RectangleShape border(
         {size.x, size.y}
@@ -602,11 +647,31 @@ void SavePopupWindow::drawWindow(sf::RenderWindow& window) {
     window.draw(border);
 }
 
+bool SavePopupWindow::turnVisible() {
+    visible = true;
+    char path[] = ".\\saves";
+    std::vector<std::string> namelist;
+    if (!listFilesOnly(path, namelist)) return false;
+
+    std::string defaultName;
+    for (int i = 1; i < 69; i++) {
+        defaultName = "save" + std::to_string(i);
+        bool matched = false;
+        for (std::string &filename : namelist) matched = matched || (defaultName + ".txt" == filename);
+        if (!matched) break;
+    }
+    textInput.innerText = defaultName;
+
+    return true;
+}
+
 bool SavePopupWindow::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     if (!visible) return false;
     if (closeButton.hoverHandler(mouseButtonEvent)) {
     }
-    if (textinput.hoverHandler(mouseButtonEvent)) {
+    if (textInput.hoverHandler(mouseButtonEvent)) {
+    }
+    if (saveButton.hoverHandler(mouseButtonEvent)) {
     }
     if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
         isSomethingHovered = true;
@@ -618,7 +683,10 @@ bool SavePopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonE
     if (closeButton.pressedHandler(mouseButtonEvent)) {
         return true;
     }
-    if (textinput.pressedHandler(mouseButtonEvent)) {
+    if (textInput.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (saveButton.pressedHandler(mouseButtonEvent)) {
         return true;
     }
     if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
@@ -632,7 +700,26 @@ bool SavePopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButto
         visible = false;
         return true;
     }
-    if (textinput.releasedHandler(mouseButtonEvent)) {
+    if (textInput.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (saveButton.releasedHandler(mouseButtonEvent)) {
+        char path[] = ".\\saves";
+        std::vector<std::string> namelist;
+        if (!listFilesOnly(path, namelist)) {
+            notifications.requestNotification("Can't open save folder");
+        } else {
+            bool matched = false;
+            for (std::string &filename : namelist) matched = matched || (textInput.innerText + ".txt" == filename);
+            if (matched) {
+                notifications.requestNotification("Name already existed");
+            } else if (saveGame(textInput.innerText)) {
+                visible = false;
+                notifications.requestNotification("Game saved!");
+            } else {
+                notifications.requestNotification("Trouble saving game");
+            }
+        }
         return true;
     }
     if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {

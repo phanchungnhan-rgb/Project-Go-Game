@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controller/systemutil.hpp"
+
 #include "engine/engine.hpp"
 #include "engine/MCTSRandomAI.hpp"
 #include "engine/handler.hpp"
@@ -7,6 +9,10 @@
 #include "ui/assets.hpp"
 
 #include <cmath>
+#include <queue>
+#include <string>
+#include <utility>
+#include <filesystem>
 
 #include <SFML/Graphics.hpp>
 
@@ -37,6 +43,24 @@ private:
     void processEvents(sf::RenderWindow& window);
     void drawStone(sf::RenderWindow& window, int x, int y, sf::Color color, float radius = ((windowHeight - 2.f * boardMargin) / static_cast<float>(BOARDSIZE - 1)) * 0.45f);
     void drawBoard(sf::RenderWindow& window);
+};
+
+class NotificationQueue {
+public:
+    float fontSize = 24;
+    sf::Color fillColor = sf::Color(0, 0, 255);
+    sf::Color color = sf::Color(255, 255, 255);
+    sf::Vector2f size = {500, 100};
+    sf::Vector2f position = {30, 30};
+    float margin = 10;
+    int timeout = 1000;
+
+    std::deque<std::pair<std::string, std::chrono::steady_clock::time_point>> queue;
+
+    void requestNotification(std::string notification);
+
+    void drawNotifications(sf::RenderWindow& window);
+private:
 };
 
 class Button {
@@ -103,6 +127,8 @@ public:
     void setColor(sf::Color clr);
     void setFontSize(float sz);
     void drawInput(sf::RenderWindow& window);
+
+    bool characterInput(char32_t unicode);
 
     bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
     bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
@@ -258,34 +284,42 @@ public:
     std::string titleString = "Save";
     float titlebarHeight = 40;
     float borderWidth = 5;
-    sf::Vector2f position = {200, 200};
+    sf::Vector2f position = {300, 250};
     sf::Color color = sf::Color(0, 0, 0);
     sf::Color inverseColor = sf::Color(255, 255, 255);
-    sf::Vector2f size = {400, 300};
+    sf::Vector2f size = {500, 222};
 
     Button closeButton;
 
     sf::FloatRect boundingBox;
 
-    Input textinput;
+    Input textInput; Button saveButton;
 
     bool visible = true;
 
-    SavePopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), textinput({100, 30}, "hocphi") {
+    SavePopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), textInput({300, 30}, "hocphi"), saveButton({80, 30}, "save") {
         closeButton.setFillColor(sf::Color(255, 0, 0));
         closeButton.setHoverFillColor(sf::Color(180, 0, 0));
         closeButton.setColor(sf::Color(255, 255, 255));
         closeButton.setPosition({float(position.x + size.x - titlebarHeight - borderWidth), float(position.y)});
         closeButton.setFontSize(closeButton.size.x - borderWidth * 2);
 
-        textinput.setFillColor(sf::Color(0, 0, 255));
-        textinput.setHoverFillColor(sf::Color(0, 0, 200));
-        textinput.setColor(sf::Color(255, 255, 255));
-        textinput.setPosition({float(position.x + 50), float(position.y + 100)});
-        textinput.setFontSize(20);
+        textInput.setFillColor(sf::Color(0, 0, 255));
+        textInput.setHoverFillColor(sf::Color(0, 0, 200));
+        textInput.setColor(sf::Color(255, 255, 255));
+        textInput.setPosition({float(position.x + 50), float(position.y + 100)});
+        textInput.setFontSize(20);
+
+        saveButton.setHoverFillColor(sf::Color(0, 0, 200));
+        saveButton.setFillColor(sf::Color(0, 0, 255));
+        saveButton.setColor(sf::Color(255, 255, 255));
+        saveButton.setPosition({float(position.x + 50 + 300 + 20), float(position.y + 100)});
+        saveButton.setFontSize(20);
     }
     
     void drawWindow(sf::RenderWindow& window);
+
+    bool turnVisible();
 
     bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
     bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);

@@ -229,7 +229,7 @@ struct Game {
     bool passTurn(bool side);
     bool undoMove(int moves);
     bool redoMove(int moves);
-    bool save(char *file_name, int gamemode_flag = 0);
+    bool saveGame(char *file_name, int gamemode_flag = 0);
     bool loadGame(char *file_name, int *gamemode_flag = nullptr);
 };
 

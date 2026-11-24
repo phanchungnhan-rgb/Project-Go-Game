@@ -37,3 +37,5 @@ void turnPassEvent();
 void undoEvent();
 
 void redoEvent();
+
+bool saveGame(std::string &filename);

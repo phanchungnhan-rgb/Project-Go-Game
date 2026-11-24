@@ -66,3 +66,9 @@ void redoEvent() {
         mctsR.init();
     }
 }
+
+bool saveGame(std::string &filename) {
+    char filenamewithextension[100];
+    strcpy(filenamewithextension, (filename + ".txt").c_str());
+    return mainGame.saveGame(filenamewithextension, gamemode_flag);
+}
