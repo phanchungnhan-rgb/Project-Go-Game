@@ -72,3 +72,16 @@ bool saveGame(std::string &filename) {
     strcpy(filenamewithextension, (filename + ".txt").c_str());
     return mainGame.saveGame(filenamewithextension, gamemode_flag);
 }
+
+bool loadGame(std::string &filename) {
+    char filenamewithextension[100];
+    strcpy(filenamewithextension, (filename + ".txt").c_str());
+    if (!mainGame.loadGame(filenamewithextension, &gamemode_flag)) return false;
+
+    if (gamemode_flag == 0) {
+
+    } if (gamemode_flag == 1) {
+        mctsR.init();
+    }
+    return true;
+}

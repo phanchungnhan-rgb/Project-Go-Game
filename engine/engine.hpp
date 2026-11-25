@@ -112,7 +112,7 @@ struct Move {
 };
 
 struct Game {
-    int8_t currentBoard[BOARDSIZE + 2][BOARDSIZE + 2];
+    int currentBoard[BOARDSIZE + 2][BOARDSIZE + 2];
 
     // Game current_game, last_game;
     std::deque<Move> previous_moves;

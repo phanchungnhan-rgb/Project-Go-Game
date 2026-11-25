@@ -39,3 +39,5 @@ void undoEvent();
 void redoEvent();
 
 bool saveGame(std::string &filename);
+
+bool loadGame(std::string &filename);

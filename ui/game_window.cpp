@@ -16,7 +16,9 @@ void GameWindow::run() {
     sf::RenderWindow window(
         sf::VideoMode({windowWidth, windowHeight}),
         "NoGoNoLife",
-        sf::Style::Titlebar
+        sf::Style::Titlebar,
+        sf::State::Windowed,
+        sf::ContextSettings{0, 8}
     );
     window.setFramerateLimit(60);
 
@@ -99,8 +101,18 @@ void GameWindow::MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent) 
     gameMenu.hoverHandler(mouseButtonEvent);
 }
 
+void GameWindow::MouseScrollEventHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
+    if (mouseButtonEvent->wheel == sf::Mouse::Wheel::Vertical) {
+        if (popuplayer.scrollHandler(mouseButtonEvent)) return;
+        // if (gameMenu.scrollHandler(mouseButtonEvent)) return;
+    }
+}
+
 void GameWindow::MouseButtonPressedEventHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
-    gameMenu.pressedHandler(mouseButtonEvent);
+    if (mouseButtonEvent->button == sf::Mouse::Button::Left) {
+        if (popuplayer.pressedHandler(mouseButtonEvent)) return;
+        if (gameMenu.pressedHandler(mouseButtonEvent)) return;
+    }
 }
 
 void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
@@ -136,6 +148,9 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
         
         if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseMoved>()) {
             MouseMoveEventHandler(mouseButtonEvent);
+        }
+        if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseWheelScrolled>()) {
+            MouseScrollEventHandler(mouseButtonEvent);
         }
         if (auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
             MouseButtonPressedEventHandler(mouseButtonEvent);
@@ -599,6 +614,7 @@ bool GameMenu::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent)
         return true;
     }
     if (loadButton.releasedHandler(mouseButtonEvent)) {
+        popuplayer.loadpopup.turnVisible();
         return true;
     }
     return false;
@@ -694,6 +710,9 @@ bool SavePopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonE
     }
     return false;
 }
+bool SavePopupWindow::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
+    return false;
+}
 bool SavePopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     if (!visible) return false;
     if (closeButton.releasedHandler(mouseButtonEvent)) {
@@ -733,14 +752,162 @@ bool SavePopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButto
 
 
 
+void LoadPopupWindow::drawWindow(sf::RenderWindow& window) {
+    if (!visible) return;
+
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y}); boundingBox = background.getGlobalBounds();
+    background.setFillColor(sf::Color(180, 180, 180));
+    window.draw(background);
+
+    sf::RectangleShape titlebarBackground(
+        {size.x, titlebarHeight}
+    );
+    titlebarBackground.setPosition({position.x, position.y});
+    titlebarBackground.setFillColor(sf::Color(0, 0, 180));
+    window.draw(titlebarBackground);
+
+    sf::Text title(font.zpix);
+    title.setString(titleString);
+    title.setFillColor(inverseColor);
+    title.setCharacterSize(titlebarHeight - borderWidth * 3);
+    title.setPosition({position.x + borderWidth * 2, position.y + borderWidth});
+    window.draw(title);
+
+    closeButton.drawButton(window);
+
+
+    window.draw(namelistMask, sf::StencilMode{sf::StencilComparison::Always, sf::StencilUpdateOperation::Replace, 1, 0xff, true});
+
+    for (int i = 0; i < namelist.size(); i++) {
+        sf::RectangleShape background(
+            {size.x - margin * 2, optionHeight}
+        );
+        background.setPosition({position.x + margin + scrollOffset.x, position.y + titlebarHeight + margin + i * optionHeight + scrollOffset.y}); 
+        if (background.getGlobalBounds().contains(sf::Vector2f(cursorPosition.x, cursorPosition.y))) background.setFillColor(sf::Color(0, 0, 255));
+        else background.setFillColor(sf::Color(0, 0, 200));
+
+        background.setOutlineColor(sf::Color(120, 120, 120));
+        background.setOutlineThickness(-borderWidth / 3);
+
+        window.draw(background, sf::StencilMode{sf::StencilComparison::Equal, sf::StencilUpdateOperation::Keep, 1, 0xff, false});
+
+        sf::Text filename(font.zpix);
+        filename.setString(namelist[i]);
+        filename.setFillColor(inverseColor);
+        filename.setCharacterSize(optionHeight * (3.0/5));
+        filename.setPosition({position.x + margin + scrollOffset.x + (optionHeight / 5), position.y + titlebarHeight + (optionHeight / 5) + margin + i * optionHeight + scrollOffset.y});
+        window.draw(filename, sf::StencilMode{sf::StencilComparison::Equal, sf::StencilUpdateOperation::Keep, 1, 0xff, false});
+    }
+
+    window.draw(namelistMask, sf::StencilMode{sf::StencilComparison::Always, sf::StencilUpdateOperation::Replace, 0, 0xff, true});
+
+    sf::RectangleShape border(
+        {size.x, size.y}
+    );
+    border.setPosition({position.x, position.y});
+    border.setOutlineColor(sf::Color(120, 120, 120));
+    border.setOutlineThickness(-borderWidth);
+    border.setFillColor(sf::Color(0, 0, 0, 0));
+    window.draw(border);
+}
+
+bool LoadPopupWindow::turnVisible() {
+    visible = true;
+    char path[] = ".\\saves";
+    namelist.clear();
+    if (!listFilesOnly(path, namelist)) return false;
+    for (std::string &filename : namelist) {
+        filename.pop_back();
+        filename.pop_back();
+        filename.pop_back();
+        filename.pop_back();
+    }
+
+    return true;
+}
+
+bool LoadPopupWindow::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
+    if (!visible) return false;
+    cursorPosition = mouseButtonEvent->position;
+    if (closeButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        isSomethingHovered = true;
+    }
+    return false;
+}
+bool LoadPopupWindow::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
+    CONSOLE_LOG("scrolled %f", mouseButtonEvent->delta);
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        if (namelistMask.getGlobalBounds().contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+            scrollOffset.y += mouseButtonEvent->delta * scrollSpeed;
+            if (scrollOffset.y > 0) scrollOffset.y = 0;
+            if (scrollOffset.y < namelistMask.getSize().y - namelist.size() * optionHeight) scrollOffset.y = namelistMask.getSize().y - namelist.size() * optionHeight;
+        }
+        return true;
+    }
+    return false;
+}
+bool LoadPopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    }
+    return false;
+}
+bool LoadPopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.releasedHandler(mouseButtonEvent)) {
+        visible = false;
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        if (namelistMask.getGlobalBounds().contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+            int index = floor((mouseButtonEvent->position.y - (position.y + titlebarHeight + margin + 0 * optionHeight + scrollOffset.y)) / optionHeight);
+            if (loadGame(namelist[index])) {
+                notifications.requestNotification("Game loaded");
+                gameMenu.gamemodeSelector.switchSelection(gamemode_flag);
+                visible = false;
+            } else {
+                notifications.requestNotification("Failed to load game");
+            }
+        }
+        return true;
+    } else {
+        visible = false;
+        return true;
+    }
+    return false;
+}
+
+
+
 
 
 void PopupWindowLayer::drawPopupWindows(sf::RenderWindow& window) {
+    loadpopup.drawWindow(window);
     savepopup.drawWindow(window);
 }
 
 bool PopupWindowLayer::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     if (savepopup.hoverHandler(mouseButtonEvent)) {
+    }
+    if (loadpopup.hoverHandler(mouseButtonEvent)) {
+    }
+    return false;
+}
+bool PopupWindowLayer::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
+    if (savepopup.scrollHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (loadpopup.scrollHandler(mouseButtonEvent)) {
+        return true;
     }
     return false;
 }
@@ -748,10 +915,16 @@ bool PopupWindowLayer::pressedHandler(sf::Event::MouseButtonPressed *mouseButton
     if (savepopup.pressedHandler(mouseButtonEvent)) {
         return true;
     }
+    if (loadpopup.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
     return false;
 }
 bool PopupWindowLayer::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     if (savepopup.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (loadpopup.releasedHandler(mouseButtonEvent)) {
         return true;
     }
     return false;

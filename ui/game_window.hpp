@@ -15,6 +15,7 @@
 #include <filesystem>
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Window/ContextSettings.hpp>
 
 class GameWindow {
 public:
@@ -36,7 +37,9 @@ private:
         int& boardY
     ) const;
 
+
     void MouseMoveEventHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    void MouseScrollEventHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent);
     void MouseButtonPressedEventHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
     void MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 
@@ -295,7 +298,7 @@ public:
 
     Input textInput; Button saveButton;
 
-    bool visible = true;
+    bool visible = false;
 
     SavePopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), textInput({300, 30}, "hocphi"), saveButton({80, 30}, "save") {
         closeButton.setFillColor(sf::Color(255, 0, 0));
@@ -321,6 +324,54 @@ public:
 
     bool turnVisible();
 
+    bool scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent);
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
+class LoadPopupWindow {
+public:
+    std::string titleString = "Load";
+    float titlebarHeight = 40;
+    float borderWidth = 5;
+    float margin = 40;
+    float optionHeight = 40;
+    sf::Vector2f position = {300, 250}; 
+    sf::Vector2f scrollOffset = {0, 0}; 
+    float scrollSpeed = 6.7;
+    sf::Color color = sf::Color(0, 0, 0);
+    sf::Color inverseColor = sf::Color(255, 255, 255);
+    sf::Vector2f size = {500, 222};
+
+    sf::Vector2i cursorPosition = {0, 0};
+
+    Button closeButton;
+
+    sf::FloatRect boundingBox;
+
+    sf::RectangleShape namelistMask;
+
+    std::vector<std::string> namelist;
+
+    bool visible = false;
+
+    LoadPopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), namelistMask({size.x - margin * 2, size.y - margin * 2 - titlebarHeight}) {
+        closeButton.setFillColor(sf::Color(255, 0, 0));
+        closeButton.setHoverFillColor(sf::Color(180, 0, 0));
+        closeButton.setColor(sf::Color(255, 255, 255));
+        closeButton.setPosition({float(position.x + size.x - titlebarHeight - borderWidth), float(position.y)});
+        closeButton.setFontSize(closeButton.size.x - borderWidth * 2);
+
+        namelistMask.setPosition({position.x + margin, position.y + titlebarHeight + margin});
+    }
+    
+    void drawWindow(sf::RenderWindow& window);
+
+    bool turnVisible();
+
+    bool scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent);
     bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
     bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
     bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
@@ -330,9 +381,11 @@ private:
 class PopupWindowLayer {
 public:
     SavePopupWindow savepopup;
+    LoadPopupWindow loadpopup;
     
     void drawPopupWindows(sf::RenderWindow& window);
 
+    bool scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent);
     bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
     bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
     bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
