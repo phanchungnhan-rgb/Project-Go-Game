@@ -27,18 +27,29 @@ void GameWindow::run() {
     texture::Stone::loadTexture(0);
     texture::Background::loadTexture(0);
 
+    // define defaut audio
+    audio::loadSound(0);
+    audio::Music::setVolume(0.5);
+    audio::SFX::setVolume(0.5);
+
 
     gameMenu.size = {380, windowHeight - boardMargin};
     gameMenu.setPosition({800, boardMargin / 2});
     gameMenu.setFillColor(sf::Color(220, 179, 92));
 
     while (window.isOpen()) {
-        AIMoveEvent();
+        if (AIMoveEvent()) {
+            audio::SFX::placeStone();
+        }
 
         processEvents(window);
 
-        window.clear(sf::Color(220, 179, 92));
+        // window.clear(sf::Color(220, 179, 92));
         window.clear(sf::Color(0, 0, 0));
+        sf::RectangleShape wallpaper({windowWidth, windowHeight});
+        wallpaper.setTexture(&texture::Background::wallpaper);
+        window.draw(wallpaper);
+
         drawBoard(window);
         
         gameMenu.drawMenu(window);
@@ -132,7 +143,10 @@ void GameWindow::MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased 
             // if (placeStone(boardX, boardY, games.back().turn)) {
             // }
 
-            if (boardX != 0 && boardY != 0) stonePlaceEvent(boardX, boardY);
+            if (boardX != 0 && boardY != 0) {
+                stonePlaceEvent(boardX, boardY);
+                audio::SFX::placeStone();
+            }
         }
         CONSOLE_LOG("clicked %d and %d\n", boardX, boardY);
     }
@@ -239,6 +253,7 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
 
 
 void NotificationQueue::requestNotification(std::string notification) {
+    audio::SFX::newNotification();
     queue.push_front({notification, std::chrono::steady_clock::now()});
 }
 
@@ -316,6 +331,11 @@ bool Button::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
 }
 
 bool Button::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        CONSOLE_LOG("BUTTON BPRESSEDDDD");
+        audio::SFX::pressButton();
+        return true;
+    }
     return false;
 }
 
@@ -327,6 +347,79 @@ bool Button::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     return false;
 }
 
+
+
+
+void Slider::setPosition(sf::Vector2f pos) {
+    position = pos;
+}
+
+void Slider::setFillColor(sf::Color clr) {
+    fillColor = clr;
+}
+void Slider::setBackgroundFillColor(sf::Color clr) {
+    backgroundFillColor = clr;
+}
+void Slider::setColor(sf::Color clr) {
+    color = clr;
+}
+void Slider::setFontSize(float sz) {
+    fontSize = sz;
+}
+
+void Slider::drawSlider(sf::RenderWindow& window) {
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y});
+    background.setFillColor(backgroundFillColor);
+    window.draw(background);
+    boundingBox = background.getGlobalBounds();
+
+    sf::RectangleShape active(
+        {size.x * value, size.y}
+    );
+    active.setPosition({position.x, position.y});
+    active.setFillColor(fillColor);
+    window.draw(active);
+}
+
+bool Slider::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) { 
+    if (hold) {
+        audio::SFX::moveSlider();
+        value = (mouseButtonEvent->position.x - position.x) / size.x;
+        if (value < 0) value = 0;
+        else if (value > 1) value = 1;
+
+        if (onChange != nullptr) {
+            onChange(value);
+        }
+    }
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        isSomethingHovered = true;
+    } else {
+    }
+    return false;
+}
+
+bool Slider::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {  
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        hold = true;
+        return true;
+    } 
+    return false;
+}
+
+bool Slider::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (hold) {
+        hold = false;
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    }
+    return false;
+}
 
 
 
@@ -484,7 +577,15 @@ bool DropdownSelector::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     return false;
 }
 
-bool DropdownSelector::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {   
+bool DropdownSelector::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+    if (activeSelection.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (droped) for (int i = 0; i < selectionList.size(); i++) {
+        if (selectionList[i]->pressedHandler(mouseButtonEvent)) {
+            return true;
+        }
+    }   
     return false;
 }
 
@@ -958,6 +1059,9 @@ void ConfigurationPopupWindow::drawWindow(sf::RenderWindow& window) {
     stoneTextureSelector.drawDropdownSelector(window);
     backgroundTextureSelector.drawDropdownSelector(window);
 
+    musicSlider.drawSlider(window);
+    SFXSlider.drawSlider(window);
+
     sf::RectangleShape border(
         {size.x, size.y}
     );
@@ -983,6 +1087,10 @@ bool ConfigurationPopupWindow::hoverHandler(sf::Event::MouseMoved *mouseButtonEv
     }
     if (backgroundTextureSelector.hoverHandler(mouseButtonEvent)) {
     }
+    if (musicSlider.hoverHandler(mouseButtonEvent)) {
+    }
+    if (SFXSlider.hoverHandler(mouseButtonEvent)) {
+    }
     if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
         isSomethingHovered = true;
     }
@@ -1005,6 +1113,12 @@ bool ConfigurationPopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mou
     if (backgroundTextureSelector.pressedHandler(mouseButtonEvent)) {
         return true;
     }
+    if (musicSlider.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (SFXSlider.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
     if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
         return true;
     }
@@ -1012,6 +1126,12 @@ bool ConfigurationPopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mou
 }
 bool ConfigurationPopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
     if (!visible) return false;
+    if (musicSlider.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (SFXSlider.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
     if (closeButton.releasedHandler(mouseButtonEvent)) {
         visible = false;
         return true;

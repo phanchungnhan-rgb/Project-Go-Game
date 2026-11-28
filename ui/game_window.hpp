@@ -100,6 +100,41 @@ public:
 private:
 };
 
+
+class Slider {
+public:
+    float fontSize = 24;
+    sf::Vector2f position;
+    sf::Color fillColor = sf::Color(128, 128, 128);
+    sf::Color backgroundFillColor = sf::Color(108, 108, 108);
+    sf::Color color = sf::Color(255, 255, 255);
+    sf::Vector2f size;
+
+    sf::FloatRect boundingBox;
+
+    bool hold = false;
+
+    float value = 0.5;
+
+    Slider(sf::Vector2f sz) {
+        size = sz;
+    }
+
+    bool (*onChange)(float value) = nullptr;
+     
+    void setPosition(sf::Vector2f pos);
+    void setFillColor(sf::Color clr);
+    void setBackgroundFillColor(sf::Color clr);
+    void setColor(sf::Color clr);
+    void setFontSize(float sz);
+    void drawSlider(sf::RenderWindow& window);
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
 class Input {
 public:
     float fontSize = 24;
@@ -401,11 +436,16 @@ public:
     DropdownSelector stoneTextureSelector;
     DropdownSelector backgroundTextureSelector;
 
+    Slider musicSlider;
+    Slider SFXSlider;
+
     bool visible = true;
 
     ConfigurationPopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), 
     stoneTextureSelector({200, 40}, "Marble"), 
-    backgroundTextureSelector({200, 40}, "Sandy") {
+    backgroundTextureSelector({200, 40}, "Sandy"),
+    musicSlider({200, 40}),
+    SFXSlider({200, 40}) {
         closeButton.setFillColor(sf::Color(255, 0, 0));
         closeButton.setHoverFillColor(sf::Color(180, 0, 0));
         closeButton.setColor(sf::Color(255, 255, 255));
@@ -429,6 +469,16 @@ public:
         backgroundTextureSelector.setHoverFillColor(sf::Color(0, 0, 180));
         backgroundTextureSelector.setColor(inverseColor);
         backgroundTextureSelector.onSelect = &texture::Background::loadTexture;
+        
+        musicSlider.setFillColor(sf::Color(0, 0, 255));
+        musicSlider.setBackgroundFillColor(sf::Color(180, 180, 180));
+        musicSlider.setPosition({position.x + 80, position.y + titlebarHeight + 80 + 120});
+        musicSlider.onChange = &audio::Music::setVolume;
+        
+        SFXSlider.setFillColor(sf::Color(0, 0, 255));
+        SFXSlider.setBackgroundFillColor(sf::Color(180, 180, 180));
+        SFXSlider.setPosition({position.x + 80 + 200 + 100, position.y + titlebarHeight + 80 + 120});
+        SFXSlider.onChange = &audio::SFX::setVolume;
     }
     
     void drawWindow(sf::RenderWindow& window);

@@ -3,7 +3,7 @@
 
 MCTSBOT mctsR;
 
-int gamemode_flag = 1; 
+int gamemode_flag = 0; 
 // 0 : play with human
 // 1 : play with MCTS Random
 
@@ -30,10 +30,12 @@ bool AIMoveEvent() {
         go::Cord2i loca = mctsR.ourTurn();
         return mainGame.placeStone({loca.x, loca.y}, !mainGame.previous_moves.back().owner);
     }
+    // audio::SFX::placeStone();
     return 1;
 }
 
 bool stonePlaceEvent(int x, int y) {
+    // audio::SFX::placeStone();
     if (gamemode_flag == 0) {
         return mainGame.placeStone({x, y}, !mainGame.previous_moves.back().owner);
     } else if (gamemode_flag == 1) {

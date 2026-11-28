@@ -56,6 +56,7 @@ target_link_libraries(NoGoNoLife
     SFML::Graphics
     SFML::Window
     SFML::System
+    SFML::Audio
 )
 
 # add_custom_command(TARGET NoGoNoLife POST_BUILD

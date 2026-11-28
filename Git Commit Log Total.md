@@ -1,6 +1,30 @@
 TAB1540 - 26125005 - Thai Bao Anh
 phanchungnhan-rgb - 26125055 - Phan Chung Nhan
 
+commit 843de0514dcae12712ab9427fe10f59e52c9bcb2
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Sat Nov 28 13:49:19 2026 +0700
+
+    added texture change
+
+commit 5481eb19fc3e1d9d16b0c60759002ec4a76da46a
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Thu Nov 26 06:28:12 2026 +0700
+
+    Loading game done
+
+commit e06f0f589d5d7e3bf618ef10d1c1f38335b08477
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Tue Nov 24 20:25:16 2026 +0700
+
+    Done saving game
+
+commit fff4b59040924fc0ea9e741e9715c5a2adb1bf77
+Author: TAB1540 <thaibaoanh93@gmail.com>
+Date:   Sun Nov 22 21:34:32 2026 +0700
+
+    added text input class
+
 commit fd2c94fb84ec4440aa88c3d39dc1eaa8223a6976
 Author: TAB1540 <thaibaoanh93@gmail.com>
 Date:   Fri Nov 20 22:10:11 2026 +0700
