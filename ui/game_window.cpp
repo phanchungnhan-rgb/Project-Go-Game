@@ -22,6 +22,12 @@ void GameWindow::run() {
     );
     window.setFramerateLimit(60);
 
+
+    // define defaut texture
+    texture::Stone::loadTexture(0);
+    texture::Background::loadTexture(0);
+
+
     gameMenu.size = {380, windowHeight - boardMargin};
     gameMenu.setPosition({800, boardMargin / 2});
     gameMenu.setFillColor(sf::Color(220, 179, 92));
@@ -162,14 +168,24 @@ void GameWindow::processEvents(sf::RenderWindow& window) {
     }
 }
 
-void GameWindow::drawStone(sf::RenderWindow& window, int x, int y, sf::Color color, float radius) {
+void GameWindow::drawStone(sf::RenderWindow& window, int x, int y, bool side, bool isGhost, float radius) {
     const float spacing = boardSpacing();
     const float pixelX = boardMargin + (x - 1) * spacing + 0.2 * ((((x * y + 67) * 131) % 24) - 24 / 2);
     const float pixelY = boardMargin + (y - 1) * spacing + 0.2 * ((((y * x + 131) * 67) % 24) - 24 / 2);
     sf::CircleShape stone(radius);
     stone.setOrigin({radius, radius});
     stone.setPosition({pixelX, pixelY});
-    stone.setFillColor(color);
+    // stone.setFillColor(sf::Color(1, 1, 1));
+    if (isGhost) {
+        if (side) stone.setFillColor(sf::Color(255, 255, 255, 50));
+        else stone.setFillColor(sf::Color(0, 0, 0, 50));
+    } else {
+        if (side) {
+            stone.setTexture(&texture::Stone::white);
+        } else {
+            stone.setTexture(&texture::Stone::black);
+        }
+    }
     window.draw(stone);
 }
 
@@ -180,7 +196,7 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
         {windowHeight - boardMargin, windowHeight - boardMargin}
     );
     backboard.setPosition({boardMargin / 2, boardMargin / 2});
-    backboard.setFillColor(sf::Color(220, 179, 92));
+    backboard.setTexture(&texture::Background::board);
     window.draw(backboard);
 
     for (int i = 0; i < BOARDSIZE; ++i) {
@@ -190,14 +206,14 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
             {windowHeight - 2.f * boardMargin, 1.f}
         );
         horizontal.setPosition({boardMargin, offset});
-        horizontal.setFillColor(sf::Color::Black);
+        horizontal.setFillColor(sf::Color::White);
         window.draw(horizontal);
 
         sf::RectangleShape vertical(
             {1.f, windowHeight - 2.f * boardMargin}
         );
         vertical.setPosition({offset, boardMargin});
-        vertical.setFillColor(sf::Color::Black);
+        vertical.setFillColor(sf::Color::White);
         window.draw(vertical);
     }
     for (int i = 1; i < BOARDSIZE + 1; ++i) {
@@ -207,9 +223,9 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
             const float pixelY = boardMargin + (j - 1) * spacing;
 
             if (mainGame.currentBoard[i][j] == 1) {
-                drawStone(window, i, j, sf::Color::Black);
+                drawStone(window, i, j, 0, false);
             } else if (mainGame.currentBoard[i][j] == 2) {
-                drawStone(window, i, j, sf::Color::White);
+                drawStone(window, i, j, 1, false);
             }
         }
     }
@@ -217,7 +233,7 @@ void GameWindow::drawBoard(sf::RenderWindow& window) {
     // draw the hover
     if (stoneHoverX != 0 && stoneHoverY != 0) {
         bool color = !mainGame.previous_moves.back().owner;
-        drawStone(window, stoneHoverX, stoneHoverY, sf::Color(color * 255, color * 255, color * 255, 50));
+        drawStone(window, stoneHoverX, stoneHoverY, color, true);
     }
 }
 
@@ -419,15 +435,35 @@ void DropdownSelector::setPosition(sf::Vector2f pos) {
 
 void DropdownSelector::setFillColor(sf::Color clr) {
     fillColor = clr;
+    activeSelection.setFillColor(clr);
+    for (int i = 0; i < selectionList.size(); i++) {
+        Button * selection = selectionList[i];
+        selection->setFillColor(clr);
+    }
 }
 void DropdownSelector::setHoverFillColor(sf::Color clr) {
     hoverFillColor = clr;
+    activeSelection.setHoverFillColor(clr);
+    for (int i = 0; i < selectionList.size(); i++) {
+        Button * selection = selectionList[i];
+        selection->setHoverFillColor(clr);
+    }
 }
 void DropdownSelector::setColor(sf::Color clr) {
     color = clr;
+    activeSelection.setColor(clr);
+    for (int i = 0; i < selectionList.size(); i++) {
+        Button * selection = selectionList[i];
+        selection->setColor(clr);
+    }
 }
 void DropdownSelector::setFontSize(float sz) {
     fontSize = sz;
+    activeSelection.setFontSize(sz);
+    for (int i = 0; i < selectionList.size(); i++) {
+        Button * selection = selectionList[i];
+        selection->setFontSize(sz);
+    }
 }
 
 void DropdownSelector::drawDropdownSelector(sf::RenderWindow& window) {
@@ -543,7 +579,7 @@ void GameMenu::drawMenu(sf::RenderWindow& window) {
         {size.x, size.y}
     );
     background.setPosition({position.x, position.y});
-    background.setFillColor(color);
+    background.setTexture(&texture::Background::sidebar);
     window.draw(background);
 
     undoButton.drawButton(window);
@@ -630,7 +666,8 @@ void SavePopupWindow::drawWindow(sf::RenderWindow& window) {
         {size.x, size.y}
     );
     background.setPosition({position.x, position.y}); boundingBox = background.getGlobalBounds();
-    background.setFillColor(sf::Color(180, 180, 180));
+    background.setTexture(&texture::Background::window);
+    background.setTextureRect(sf::IntRect({0, 0}, {(int)size.x, (int)size.y}));
     window.draw(background);
 
     sf::RectangleShape titlebarBackground(
@@ -759,7 +796,8 @@ void LoadPopupWindow::drawWindow(sf::RenderWindow& window) {
         {size.x, size.y}
     );
     background.setPosition({position.x, position.y}); boundingBox = background.getGlobalBounds();
-    background.setFillColor(sf::Color(180, 180, 180));
+    background.setTexture(&texture::Background::window);
+    background.setTextureRect(sf::IntRect({0, 0}, {(int)size.x, (int)size.y}));
     window.draw(background);
 
     sf::RectangleShape titlebarBackground(
@@ -890,7 +928,115 @@ bool LoadPopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButto
 
 
 
+void ConfigurationPopupWindow::drawWindow(sf::RenderWindow& window) {
+    if (!visible) return;
+
+    sf::RectangleShape background(
+        {size.x, size.y}
+    );
+    background.setPosition({position.x, position.y}); boundingBox = background.getGlobalBounds();
+    background.setTexture(&texture::Background::window);
+    background.setTextureRect(sf::IntRect({0, 0}, {(int)size.x, (int)size.y}));
+    window.draw(background);
+
+    sf::RectangleShape titlebarBackground(
+        {size.x, titlebarHeight}
+    );
+    titlebarBackground.setPosition({position.x, position.y});
+    titlebarBackground.setFillColor(sf::Color(0, 0, 180));
+    window.draw(titlebarBackground);
+
+    sf::Text title(font.zpix);
+    title.setString(titleString);
+    title.setFillColor(inverseColor);
+    title.setCharacterSize(titlebarHeight - borderWidth * 3);
+    title.setPosition({position.x + borderWidth * 2, position.y + borderWidth});
+    window.draw(title);
+
+    closeButton.drawButton(window);
+
+    stoneTextureSelector.drawDropdownSelector(window);
+    backgroundTextureSelector.drawDropdownSelector(window);
+
+    sf::RectangleShape border(
+        {size.x, size.y}
+    );
+    border.setPosition({position.x, position.y});
+    border.setOutlineColor(sf::Color(120, 120, 120));
+    border.setOutlineThickness(-borderWidth);
+    border.setFillColor(sf::Color(0, 0, 0, 0));
+    window.draw(border);
+}
+
+bool ConfigurationPopupWindow::turnVisible() {
+    visible = true;
+
+    return true;
+}
+
+bool ConfigurationPopupWindow::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
+    if (!visible) return false;
+    cursorPosition = mouseButtonEvent->position;
+    if (closeButton.hoverHandler(mouseButtonEvent)) {
+    }
+    if (stoneTextureSelector.hoverHandler(mouseButtonEvent)) {
+    }
+    if (backgroundTextureSelector.hoverHandler(mouseButtonEvent)) {
+    }
+    if ((!isSomethingHovered) && boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        isSomethingHovered = true;
+    }
+    return false;
+}
+bool ConfigurationPopupWindow::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    }
+    return false;
+}
+bool ConfigurationPopupWindow::pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (stoneTextureSelector.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (backgroundTextureSelector.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    }
+    return false;
+}
+bool ConfigurationPopupWindow::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
+    if (!visible) return false;
+    if (closeButton.releasedHandler(mouseButtonEvent)) {
+        visible = false;
+        return true;
+    }
+    if (stoneTextureSelector.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (backgroundTextureSelector.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (boundingBox.contains(sf::Vector2f(mouseButtonEvent->position.x, mouseButtonEvent->position.y))) {
+        return true;
+    } else {
+        visible = false;
+        return true;
+    }
+    return false;
+}
+
+
+
+
+
 void PopupWindowLayer::drawPopupWindows(sf::RenderWindow& window) {
+    configpopup.drawWindow(window);
     loadpopup.drawWindow(window);
     savepopup.drawWindow(window);
 }
@@ -900,6 +1046,8 @@ bool PopupWindowLayer::hoverHandler(sf::Event::MouseMoved *mouseButtonEvent) {
     }
     if (loadpopup.hoverHandler(mouseButtonEvent)) {
     }
+    if (configpopup.hoverHandler(mouseButtonEvent)) {
+    }
     return false;
 }
 bool PopupWindowLayer::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent) {
@@ -907,6 +1055,9 @@ bool PopupWindowLayer::scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonE
         return true;
     }
     if (loadpopup.scrollHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (configpopup.scrollHandler(mouseButtonEvent)) {
         return true;
     }
     return false;
@@ -918,6 +1069,9 @@ bool PopupWindowLayer::pressedHandler(sf::Event::MouseButtonPressed *mouseButton
     if (loadpopup.pressedHandler(mouseButtonEvent)) {
         return true;
     }
+    if (configpopup.pressedHandler(mouseButtonEvent)) {
+        return true;
+    }
     return false;
 }
 bool PopupWindowLayer::releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent) {
@@ -925,6 +1079,9 @@ bool PopupWindowLayer::releasedHandler(sf::Event::MouseButtonReleased *mouseButt
         return true;
     }
     if (loadpopup.releasedHandler(mouseButtonEvent)) {
+        return true;
+    }
+    if (configpopup.releasedHandler(mouseButtonEvent)) {
         return true;
     }
     return false;

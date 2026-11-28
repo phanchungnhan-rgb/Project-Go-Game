@@ -7,13 +7,14 @@ int gamemode_flag = 1;
 // 0 : play with human
 // 1 : play with MCTS Random
 
-void switchGamemodeEvent(int index) {
+bool switchGamemodeEvent(int index) {
     if (index == 0) {
         gamemode_flag = 0;
     } else if (index == 1) {
         gamemode_flag = 1;
         mctsR.init();
     }
+    return true;
 }
 
 bool moveWithMCTSRandom(int x, int y) {

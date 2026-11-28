@@ -44,7 +44,7 @@ private:
     void MouseButtonReleasedEventHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
 
     void processEvents(sf::RenderWindow& window);
-    void drawStone(sf::RenderWindow& window, int x, int y, sf::Color color, float radius = ((windowHeight - 2.f * boardMargin) / static_cast<float>(BOARDSIZE - 1)) * 0.45f);
+    void drawStone(sf::RenderWindow& window, int x, int y, bool side, bool isGhost, float radius = ((windowHeight - 2.f * boardMargin) / static_cast<float>(BOARDSIZE - 1)) * 0.45f);
     void drawBoard(sf::RenderWindow& window);
 };
 
@@ -171,7 +171,7 @@ public:
         activeSelection.color = color;
     }
 
-    void (*onSelect)(int index) = nullptr;
+    bool (*onSelect)(int index) = nullptr;
 
     void addSelection(std::string str);
     void addSelectionList(std::vector<std::string> vtrstr);
@@ -243,7 +243,7 @@ public:
     undoButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "UNDO"), 
     redoButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "REDO"),
     passButton({sz.x - 2 * menuMargin, buttonHeight}, "PASS"),
-    gamemodeSelector({380 - 40 * 2, 40}, "Select gamemode"),
+    gamemodeSelector({380 - 40 * 2, 40}, "Player vs Player"),
     saveButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "SAVE"), 
     loadButton({(sz.x - 3 * menuMargin) / 2, buttonHeight}, "LOAD"),
     indicator({sz.x - 2 * menuMargin, 70.f}, "BLACK TURN") {
@@ -254,8 +254,8 @@ public:
         redoButton.setPosition({position.x + (size.x + menuMargin) / 2, position.y + menuMargin});
         passButton.setPosition({position.x + menuMargin, position.y + buttonHeight + 2 * menuMargin});
 
-        gamemodeSelector.addSelection("gamemode 0");
-        gamemodeSelector.addSelection("gamemode 1");
+        gamemodeSelector.addSelection("Player vs Player");
+        gamemodeSelector.addSelection("MCTS RandomSim");
         gamemodeSelector.addSelection("gamemode 2");
         gamemodeSelector.onSelect = &switchGamemodeEvent;
 
@@ -378,10 +378,75 @@ public:
 private:
 };
 
+class ConfigurationPopupWindow {
+public:
+    std::string titleString = "Load";
+    float titlebarHeight = 40;
+    float borderWidth = 5;
+    float margin = 40;
+    float optionHeight = 40;
+    sf::Vector2f position = {300, 250}; 
+    sf::Vector2f scrollOffset = {0, 0}; 
+    float scrollSpeed = 6.7;
+    sf::Color color = sf::Color(0, 0, 0);
+    sf::Color inverseColor = sf::Color(255, 255, 255);
+    sf::Vector2f size = {700, 444};
+
+    sf::Vector2i cursorPosition = {0, 0};
+
+    Button closeButton;
+
+    sf::FloatRect boundingBox;
+
+    DropdownSelector stoneTextureSelector;
+    DropdownSelector backgroundTextureSelector;
+
+    bool visible = true;
+
+    ConfigurationPopupWindow(): closeButton({titlebarHeight , titlebarHeight}, "X"), 
+    stoneTextureSelector({200, 40}, "Marble"), 
+    backgroundTextureSelector({200, 40}, "Sandy") {
+        closeButton.setFillColor(sf::Color(255, 0, 0));
+        closeButton.setHoverFillColor(sf::Color(180, 0, 0));
+        closeButton.setColor(sf::Color(255, 255, 255));
+        closeButton.setPosition({float(position.x + size.x - titlebarHeight - borderWidth), float(position.y)});
+        closeButton.setFontSize(closeButton.size.x - borderWidth * 2);
+
+        stoneTextureSelector.addSelection("Marble");
+        stoneTextureSelector.addSelection("Gliter");
+        stoneTextureSelector.addSelection("type 2");
+        stoneTextureSelector.setPosition({position.x + 80, position.y + titlebarHeight + 80});
+        stoneTextureSelector.setFillColor(sf::Color(0, 0, 255));
+        stoneTextureSelector.setHoverFillColor(sf::Color(0, 0, 180));
+        stoneTextureSelector.setColor(inverseColor);
+        stoneTextureSelector.onSelect = &texture::Stone::loadTexture;
+
+        backgroundTextureSelector.addSelection("Sandy");
+        backgroundTextureSelector.addSelection("Stone");
+        backgroundTextureSelector.addSelection("type 2");
+        backgroundTextureSelector.setPosition({position.x + 80 + 200 + 100, position.y + titlebarHeight + 80});
+        backgroundTextureSelector.setFillColor(sf::Color(0, 0, 255));
+        backgroundTextureSelector.setHoverFillColor(sf::Color(0, 0, 180));
+        backgroundTextureSelector.setColor(inverseColor);
+        backgroundTextureSelector.onSelect = &texture::Background::loadTexture;
+    }
+    
+    void drawWindow(sf::RenderWindow& window);
+
+    bool turnVisible();
+
+    bool hoverHandler(sf::Event::MouseMoved *mouseButtonEvent);
+    bool scrollHandler(sf::Event::MouseWheelScrolled *mouseButtonEvent);
+    bool pressedHandler(sf::Event::MouseButtonPressed *mouseButtonEvent);
+    bool releasedHandler(sf::Event::MouseButtonReleased *mouseButtonEvent);
+private:
+};
+
 class PopupWindowLayer {
 public:
     SavePopupWindow savepopup;
     LoadPopupWindow loadpopup;
+    ConfigurationPopupWindow configpopup;
     
     void drawPopupWindows(sf::RenderWindow& window);
 

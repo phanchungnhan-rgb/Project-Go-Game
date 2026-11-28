@@ -10,6 +10,11 @@ project(NoGoNoLife)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
+# copy assets to build folder
+add_custom_target(copy_assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIGURATION>/assets
+)
+
 add_subdirectory(vendored/SFML EXCLUDE_FROM_ALL)
 
 add_executable(NoGoNoLife)
@@ -41,6 +46,8 @@ target_sources(NoGoNoLife
     ui/assets.hpp
     ui/assets.cpp
 )
+
+add_dependencies(NoGoNoLife copy_assets)
 
 target_link_libraries(NoGoNoLife
   PRIVATE
